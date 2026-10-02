@@ -1,0 +1,69 @@
+{
+  "jsonid": "input_profile",
+  "controller_type": "flowvr_keyboard_mouse",
+  "device_class": "TrackedDeviceClass_Controller",
+  "legacy_binding": "{flowvr}/input/legacy_bindings_flowvr_keyboard_mouse.json",
+  "input_bindingui_mode": "single_device",
+  "input_bindingui_right": {
+    "image": "{flowvr}/icons/controller_status_ready.png"
+  },
+  "input_source": {
+    "/input/trigger": {
+      "binding_image_point": [ 120, 100 ],
+      "type": "trigger",
+      "value": true,
+      "click": true,
+      "order": 1
+    },
+    "/input/grip": {
+      "binding_image_point": [ 180, 150 ],
+      "type": "button",
+      "click": true,
+      "order": 2
+    },
+    "/input/trackpad": {
+      "binding_image_point": [ 250, 100 ],
+      "type": "trackpad",
+      "click": true,
+      "touch": true,
+      "order": 3
+    },
+    "/input/application_menu": {
+      "binding_image_point": [ 300, 70 ],
+      "type": "button",
+      "click": true,
+      "order": 4
+    },
+    "/input/system": {
+      "binding_image_point": [ 300, 30 ],
+      "type": "button",
+      "click": true,
+      "order": 5
+    },
+    "/pose/raw": {
+      "binding_image_point": [ 220, 70 ],
+      "type": "pose",
+      "order": 5
+    },
+    "/pose/tip": {
+      "binding_image_point": [ 220, 70 ],
+      "type": "pose",
+      "order": 6
+    },
+    "/output/haptic": {
+      "binding_image_point": [ 300, 150 ],
+      "type": "vibration",
+      "order": 7
+    }
+  },
+  "default_bindings": [
+    {
+      "app_key": "openvr.component.vrcompositor",
+      "binding_url": "vrcompositor_bindings_flowvr_keyboard_mouse.json"
+    },
+    {
+      "app_key": "steam.client",
+      "binding_url": "steam_client_bindings_flowvr_keyboard_mouse.json"
+    }
+  ]
+}

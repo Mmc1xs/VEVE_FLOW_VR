@@ -1,0 +1,215 @@
+Sensor Device:
+Total 30 h/w sensors, 30 running:
+0x00000013) active-count = 2; sampling_period(ms) = {1.0, 200.0}, selected = 1.00 ms; batching_period(ms) = {0.0, 0.0}, selected = 0.00 ms
+0x00000016) active-count = 1; sampling_period(ms) = {2.0}, selected = 2.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+Sensor List:
+0x00000001) gravity  Wakeup           | qualcomm        | ver: 1 | type: android.sensor.gravity(9) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (10000, 300) events | wakeUp | 
+0x00000002) gravity  Non-wakeup       | qualcomm        | ver: 1 | type: android.sensor.gravity(9) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (10000, 300) events | non-wakeUp | 
+0x00000003) motion_detect_wakeup      | qualcomm        | ver: 1 | type: android.sensor.motion_detect(30) | perm: n/a | flags: 0x00000005
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | wakeUp | 
+0x00000004) motion_detect             | qualcomm        | ver: 1 | type: android.sensor.motion_detect(30) | perm: n/a | flags: 0x00000004
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | non-wakeUp | 
+0x00000005) sns_tilt  Wakeup          | qualcomm        | ver: 1 | type: android.sensor.tilt_detector(22) | perm: n/a | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 0) events | wakeUp | 
+0x00000006) icm4x6xx Gyroscope-Uncalibrated Wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.gyroscope_uncalibrated(16) | perm: n/a | flags: 0x000009c1
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 0) events | wakeUp | has-additional-info, 
+	highest rate level = 3, support shared mem: gralloc, 
+0x00000007) icm4x6xx Gyroscope-Uncalibrated Non-wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.gyroscope_uncalibrated(16) | perm: n/a | flags: 0x000009c0
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 0) events | non-wakeUp | has-additional-info, 
+	highest rate level = 3, support shared mem: gralloc, 
+0x00000008) Device Orientation  Wakeup | qualcomm        | ver: 1 | type: android.sensor.device_orientation(27) | perm: n/a | flags: 0x00000003
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 0) events | wakeUp | 
+0x00000009) Device Orientation  Non-wakeup | qualcomm        | ver: 1 | type: android.sensor.device_orientation(27) | perm: n/a | flags: 0x00000002
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 0) events | non-wakeUp | 
+0x0000000a) icm4x6xx Gyroscope Wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.gyroscope(4) | perm: n/a | flags: 0x000009c1
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 0) events | wakeUp | has-additional-info, 
+	highest rate level = 3, support shared mem: gralloc, 
+0x0000000b) icm4x6xx Gyroscope Non-wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.gyroscope(4) | perm: n/a | flags: 0x000009c0
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 0) events | non-wakeUp | has-additional-info, 
+	highest rate level = 3, support shared mem: gralloc, 
+0x0000000c) Game Rotation Vector  Wakeup | qualcomm        | ver: 1 | type: android.sensor.game_rotation_vector(15) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (10000, 300) events | wakeUp | 
+0x0000000d) Game Rotation Vector  Non-wakeup | qualcomm        | ver: 1 | type: android.sensor.game_rotation_vector(15) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (10000, 300) events | non-wakeUp | 
+0x0000000e) linear_acceleration_wakeup | qualcomm        | ver: 1 | type: android.sensor.linear_acceleration(10) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (10000, 300) events | wakeUp | 
+0x0000000f) linear_acceleration       | qualcomm        | ver: 1 | type: android.sensor.linear_acceleration(10) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (10000, 300) events | non-wakeUp | 
+0x00000010) sns_smd  Wakeup           | qualcomm        | ver: 1 | type: android.sensor.significant_motion(17) | perm: n/a | flags: 0x00000005
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | wakeUp | 
+0x00000011) pedometer  Wakeup         | qualcomm        | ver: 1 | type: android.sensor.step_counter(19) | perm: n/a | flags: 0x00000003
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 300) events | wakeUp | 
+0x00000012) pedometer  Non-wakeup     | qualcomm        | ver: 1 | type: android.sensor.step_counter(19) | perm: n/a | flags: 0x00000002
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 300) events | non-wakeUp | 
+0x00000013) epl Proximity Sensor Wakeup | eminent         | ver: 512 | type: android.sensor.proximity(8) | perm: n/a | flags: 0x00000003
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 300) events | wakeUp | 
+0x00000014) epl Proximity Sensor Non-wakeup | eminent         | ver: 512 | type: android.sensor.proximity(8) | perm: n/a | flags: 0x00000002
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 300) events | non-wakeUp | 
+0x00000015) icm4x6xx Accelerometer Wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.accelerometer(1) | perm: n/a | flags: 0x00000981
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 3000) events | wakeUp | 
+	highest rate level = 3, support shared mem: gralloc, 
+0x00000016) icm4x6xx Accelerometer Non-wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.accelerometer(1) | perm: n/a | flags: 0x00000980
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 3000) events | non-wakeUp | 
+	highest rate level = 3, support shared mem: gralloc, 
+0x00000017) icm4x6xx Accelerometer-Uncalibrated Wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.accelerometer_uncalibrated(35) | perm: n/a | flags: 0x00000981
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 3000) events | wakeUp | 
+	highest rate level = 3, support shared mem: gralloc, 
+0x00000018) icm4x6xx Accelerometer-Uncalibrated Non-wakeup | TDK-Invensense  | ver: 77842 | type: android.sensor.accelerometer_uncalibrated(35) | perm: n/a | flags: 0x00000980
+	continuous | minRate=1.00Hz | maxRate=500.00Hz | FIFO (max,reserved) = (10000, 3000) events | non-wakeUp | 
+	highest rate level = 3, support shared mem: gralloc, 
+0x00000019) bu52053nvx Hall Effect Sensor Wakeup | ROHM            | ver: 3 | type: qti.sensor.hall_effect(33171002) | perm: n/a | flags: 0x00000003
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 0) events | wakeUp | 
+0x0000001a) bu52053nvx Hall Effect Sensor Non-wakeup | ROHM            | ver: 3 | type: qti.sensor.hall_effect(33171002) | perm: n/a | flags: 0x00000002
+	on-change | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 0) events | non-wakeUp | 
+0x0000001b) stationary_detect_wakeup  | qualcomm        | ver: 1 | type: android.sensor.stationary_detect(29) | perm: n/a | flags: 0x00000005
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | wakeUp | 
+0x0000001c) stationary_detect         | qualcomm        | ver: 1 | type: android.sensor.stationary_detect(29) | perm: n/a | flags: 0x00000004
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | non-wakeUp | 
+0x0000001d) pedometer  Wakeup         | qualcomm        | ver: 1 | type: android.sensor.step_detector(18) | perm: n/a | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 300) events | wakeUp | 
+0x0000001e) pedometer  Non-wakeup     | qualcomm        | ver: 1 | type: android.sensor.step_detector(18) | perm: n/a | flags: 0x00000006
+	special-trigger | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (10000, 300) events | non-wakeUp | 
+Fusion States:
+9-axis fusion disabled (0 clients), gyro-rate= 200.00Hz, q=< 0, 0, 0, 0 > (0), b=< 0, 0, 0 >
+game fusion(no mag) disabled (0 clients), gyro-rate= 200.00Hz, q=< 0, 0, 0, 0 > (0), b=< 0, 0, 0 >
+geomag fusion (no gyro) disabled (0 clients), gyro-rate= 200.00Hz, q=< 0, 0, 0, 0 > (0), b=< 0, 0, 0 >
+Recent Sensor events:
+icm4x6xx Accelerometer Non-wakeup: last 50 events
+	 1 (ts=38758.303360430, wall=07-02 07:59:26.807) -0.07, 9.53, -2.18, 
+	 2 (ts=38758.305338294, wall=07-02 07:59:26.809) -0.06, 9.55, -2.18, 
+	 3 (ts=38758.307316159, wall=07-02 07:59:26.810) -0.07, 9.54, -2.19, 
+	 4 (ts=38758.309294076, wall=07-02 07:59:26.813) -0.07, 9.55, -2.17, 
+	 5 (ts=38758.311272044, wall=07-02 07:59:26.815) -0.09, 9.53, -2.17, 
+	 6 (ts=38758.313250065, wall=07-02 07:59:26.816) -0.06, 9.52, -2.18, 
+	 7 (ts=38758.315228086, wall=07-02 07:59:26.818) -0.09, 9.52, -2.16, 
+	 8 (ts=38758.317206107, wall=07-02 07:59:26.820) -0.09, 9.51, -2.20, 
+	 9 (ts=38758.319184128, wall=07-02 07:59:26.822) -0.08, 9.55, -2.18, 
+	10 (ts=38758.321162149, wall=07-02 07:59:26.824) -0.08, 9.55, -2.17, 
+	11 (ts=38758.323140169, wall=07-02 07:59:26.826) -0.07, 9.54, -2.19, 
+	12 (ts=38758.325118190, wall=07-02 07:59:26.828) -0.06, 9.54, -2.19, 
+	13 (ts=38758.327096211, wall=07-02 07:59:26.830) -0.07, 9.54, -2.18, 
+	14 (ts=38758.329074232, wall=07-02 07:59:26.832) -0.09, 9.54, -2.18, 
+	15 (ts=38758.331052149, wall=07-02 07:59:26.834) -0.06, 9.52, -2.17, 
+	16 (ts=38758.333030065, wall=07-02 07:59:26.836) -0.07, 9.49, -2.18, 
+	17 (ts=38758.335007982, wall=07-02 07:59:26.838) -0.07, 9.50, -2.18, 
+	18 (ts=38758.336985899, wall=07-02 07:59:26.840) -0.06, 9.51, -2.20, 
+	19 (ts=38758.338963815, wall=07-02 07:59:26.842) -0.05, 9.53, -2.20, 
+	20 (ts=38758.340941732, wall=07-02 07:59:26.844) -0.08, 9.55, -2.18, 
+	21 (ts=38758.342919649, wall=07-02 07:59:26.846) -0.08, 9.53, -2.16, 
+	22 (ts=38758.344897565, wall=07-02 07:59:26.848) -0.07, 9.57, -2.20, 
+	23 (ts=38758.346875430, wall=07-02 07:59:26.850) -0.05, 9.53, -2.17, 
+	24 (ts=38758.348853190, wall=07-02 07:59:26.858) -0.04, 9.52, -2.18, 
+	25 (ts=38758.350830951, wall=07-02 07:59:26.858) -0.08, 9.51, -2.17, 
+	26 (ts=38758.352808711, wall=07-02 07:59:26.858) -0.07, 9.51, -2.18, 
+	27 (ts=38758.354786471, wall=07-02 07:59:26.858) -0.06, 9.51, -2.18, 
+	28 (ts=38758.356764232, wall=07-02 07:59:26.860) -0.08, 9.53, -2.20, 
+	29 (ts=38758.358741992, wall=07-02 07:59:26.868) -0.05, 9.53, -2.18, 
+	30 (ts=38758.360719753, wall=07-02 07:59:26.868) -0.06, 9.54, -2.16, 
+	31 (ts=38758.362697513, wall=07-02 07:59:26.868) -0.07, 9.54, -2.19, 
+	32 (ts=38758.364675274, wall=07-02 07:59:26.868) -0.08, 9.54, -2.18, 
+	33 (ts=38758.366653034, wall=07-02 07:59:26.876) -0.08, 9.51, -2.18, 
+	34 (ts=38758.368630846, wall=07-02 07:59:26.876) -0.06, 9.51, -2.17, 
+	35 (ts=38758.370608711, wall=07-02 07:59:26.876) -0.09, 9.54, -2.18, 
+	36 (ts=38758.372586628, wall=07-02 07:59:26.876) -0.08, 9.55, -2.18, 
+	37 (ts=38758.374564596, wall=07-02 07:59:26.878) -0.08, 9.53, -2.15, 
+	38 (ts=38758.376542617, wall=07-02 07:59:26.880) -0.08, 9.52, -2.18, 
+	39 (ts=38758.378520690, wall=07-02 07:59:26.882) -0.08, 9.52, -2.19, 
+	40 (ts=38758.380498815, wall=07-02 07:59:26.884) -0.05, 9.52, -2.18, 
+	41 (ts=38758.382476992, wall=07-02 07:59:26.886) -0.07, 9.52, -2.19, 
+	42 (ts=38758.384455221, wall=07-02 07:59:26.888) -0.09, 9.52, -2.17, 
+	43 (ts=38758.386433503, wall=07-02 07:59:26.890) -0.08, 9.53, -2.19, 
+	44 (ts=38758.388411836, wall=07-02 07:59:26.894) -0.06, 9.54, -2.19, 
+	45 (ts=38758.390390169, wall=07-02 07:59:26.894) -0.07, 9.54, -2.18, 
+	46 (ts=38758.392368503, wall=07-02 07:59:26.895) -0.06, 9.52, -2.19, 
+	47 (ts=38758.394346836, wall=07-02 07:59:26.897) -0.07, 9.51, -2.17, 
+	48 (ts=38758.396325169, wall=07-02 07:59:26.899) -0.09, 9.53, -2.18, 
+	49 (ts=38758.398303503, wall=07-02 07:59:26.901) -0.08, 9.52, -2.19, 
+	50 (ts=38758.400281836, wall=07-02 07:59:26.903) -0.09, 9.51, -2.18, 
+epl Proximity Sensor Wakeup: last 8 events
+	 1 (ts=12.060565930, wall=07-01 21:13:40.568) 0.00, 0.00, 0.00, 
+	 2 (ts=281.883441877, wall=07-01 21:18:10.388) 5.00, 0.00, 0.00, 
+	 3 (ts=358.409306167, wall=07-01 21:19:26.913) 0.00, 0.00, 0.00, 
+	 4 (ts=366.903233928, wall=07-01 21:19:35.406) 5.00, 0.00, 0.00, 
+	 5 (ts=2484.145788698, wall=07-01 21:54:52.742) 0.00, 0.00, 0.00, 
+	 6 (ts=2494.767340516, wall=07-01 21:55:03.271) 5.00, 0.00, 0.00, 
+	 7 (ts=2735.388040118, wall=07-01 21:59:03.892) 0.00, 0.00, 0.00, 
+	 8 (ts=2751.087534586, wall=07-01 21:59:19.591) 5.00, 0.00, 0.00, 
+Active sensors:
+epl Proximity Sensor Wakeup (handle=0x00000013, connections=2)
+icm4x6xx Accelerometer Non-wakeup (handle=0x00000016, connections=1)
+Socket Buffer size = 984 events
+WakeLock Status: not held 
+Mode : NORMAL
+3 active connections
+Connection Number: 0 
+	Operating Mode: NORMAL
+	 hidl_client_pid_967 | WakeLockRefCount 0 | uid 1000 | cache size 0 | max cache size 0
+	 epl Proximity Sensor Wakeup 0x00000013 | status: active | pending flush events 0 
+Connection Number: 1 
+	Operating Mode: NORMAL
+	 com.htc.vr.device.svr.SvrHmdDevice | WakeLockRefCount 0 | uid 1000 | cache size 0 | max cache size 0
+	 epl Proximity Sensor Wakeup 0x00000013 | status: active | pending flush events 0 
+Connection Number: 2 
+	Operating Mode: NORMAL
+	 com.htc.vr.device.svr.SvrHeadPoseRunnable | WakeLockRefCount 0 | uid 1000 | cache size 0 | max cache size 10000
+	 icm4x6xx Accelerometer Non-wakeup 0x00000016 | status: active | pending flush events 0 
+0 direct connections
+Previous Registrations:
+21:59:23 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:59:23 - 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967
+21:59:23 - 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService
+21:59:23 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:59:23 - 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager
+21:59:05 + 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService samplingPeriod=2000us batchingPeriod=0us
+21:59:04 + 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager samplingPeriod=200000us batchingPeriod=0us
+21:59:04 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:56:37 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:56:37 - 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967
+21:56:37 - 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService
+21:56:37 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:56:37 - 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager
+21:56:33 + 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService samplingPeriod=2000us batchingPeriod=0us
+21:56:31 + 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager samplingPeriod=200000us batchingPeriod=0us
+21:56:31 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:55:07 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:55:07 - 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967
+21:55:07 - 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService
+21:55:07 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:55:06 - 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager
+21:54:54 + 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService samplingPeriod=2000us batchingPeriod=0us
+21:54:52 + 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager samplingPeriod=200000us batchingPeriod=0us
+21:54:52 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:19:55 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:19:55 - 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967
+21:19:55 - 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService
+21:19:55 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:19:54 - 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager
+21:19:50 + 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService samplingPeriod=2000us batchingPeriod=0us
+21:19:49 + 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager samplingPeriod=200000us batchingPeriod=0us
+21:19:49 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:19:39 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:19:39 - 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967
+21:19:39 - 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService
+21:19:39 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:19:38 - 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager
+21:19:28 + 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService samplingPeriod=2000us batchingPeriod=0us
+21:19:27 + 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager samplingPeriod=200000us batchingPeriod=0us
+21:19:27 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:18:15 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:18:15 - 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967
+21:18:14 - 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService
+21:18:14 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:18:14 - 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager
+21:14:00 - 0x00000016 pid= 1974 uid=10092 package=unknown_package_pid_1974
+21:14:00 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:14:00 + 0x00000016 pid= 1974 uid=10092 package=unknown_package_pid_1974 samplingPeriod=200000us batchingPeriod=0us
+21:14:00 - 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111
+21:13:59 + 0x00000016 pid= 1974 uid=10092 package=unknown_package_pid_1974 samplingPeriod=200000us batchingPeriod=0us
+21:13:55 + 0x00000016 pid= 2704 uid= 1000 package=com.htc.motiondetect.MotionDetectService samplingPeriod=2000us batchingPeriod=0us
+21:13:53 + 0x00000016 pid= 2111 uid=10031 package=unknown_package_pid_2111 samplingPeriod=200000us batchingPeriod=0us
+21:13:51 + 0x00000016 pid= 1909 uid= 1000 package=com.htc.vr.device.svr.SvrHeadPoseRunnable samplingPeriod=2000us batchingPeriod=0us
+21:13:51 + 0x00000013 pid= 1909 uid= 1000 package=com.htc.vr.device.svr.SvrHmdDevice samplingPeriod=200000us batchingPeriod=0us
+21:13:51 + 0x00000013 pid= 1216 uid= 1000 package=hidl_client_pid_967 samplingPeriod=1000us batchingPeriod=0us
+21:13:40 + 0x00000013 pid= 1216 uid= 1000 package=com.android.server.policy.PhoneWindowManager samplingPeriod=200000us batchingPeriod=0us

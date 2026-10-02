@@ -1,0 +1,22 @@
+{
+  "bindings": {
+    "/actions/legacy": {
+      "haptics": [],
+      "poses": [],
+      "sources": [
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/legacy/in/head_proximity"
+            }
+          },
+          "mode": "button",
+          "path": "/user/head/proximity"
+        }
+      ]
+    }
+  },
+  "controller_type": "flowvr_hmd",
+  "description": "",
+  "name": "Flow HMD legacy bindings"
+}

@@ -1,0 +1,46 @@
+# --- Build output (regenerate with scripts\build.ps1) ---
+pc/flow_steamvr_driver/build*/
+pc/flow_dashboard_helper/build*/
+pc/flow_desktop_streamer/bin/
+pc/flow_desktop_streamer/obj/
+/bin/
+Wave_Native_SDK/samples/wvr_flow_probe/.gradle/
+Wave_Native_SDK/samples/wvr_flow_probe/build/
+Wave_Native_SDK/samples/wvr_flow_probe/app/build*/
+Wave_Native_SDK/samples/wvr_flow_probe/app/.cxx*/
+Wave_Native_SDK/samples/wvr_flow_probe/app/.externalNativeBuild/
+# Machine specific (written by scripts\build.ps1)
+Wave_Native_SDK/samples/wvr_flow_probe/local.properties
+
+# --- Runtime output ---
+*.log
+__pycache__/
+*.pyc
+
+# --- Never publish ---
+# Device identity / installed apps dumped from the Flow
+flow_probe/getprop.txt
+flow_probe/packages.txt
+# HTC Wave SDK: VIVE SDK License Agreement, download it yourself (see README)
+Wave_Native_SDK/repo/
+Wave_Native_SDK/LICENSE
+# Unused leftovers of HTC's hello-VR sample (not compiled, HTC-licensed)
+Wave_Native_SDK/samples/wvr_flow_probe/app/src/main/jni/object/
+Wave_Native_SDK/samples/wvr_flow_probe/app/src/main/jni/scene/
+Wave_Native_SDK/samples/wvr_flow_probe/app/src/main/jni/shared/
+Wave_Native_SDK/samples/wvr_flow_probe/app/src/main/assets/shader/
+Wave_Native_SDK/samples/wvr_flow_probe/app/src/main/assets/textures/
+
+# --- Large / third-party, obtained separately (see README) ---
+# JDK 8 for the Android build
+/tools/
+# Valve virtual display sample (reference only)
+pc/virtual_display_sample/
+# Original Wave hello-VR sample (reference only)
+Wave_Native_SDK/samples/wvr_native_hellovr/
+
+# --- Editors / OS ---
+.vs/
+.vscode/
+*.user
+Thumbs.db

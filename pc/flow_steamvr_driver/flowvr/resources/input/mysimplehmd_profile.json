@@ -1,0 +1,22 @@
+{
+  "jsonid": "input_profile",
+  "controller_type": "flowvr_hmd",
+  "legacy_binding": "{flowvr}/input/legacy_bindings_flowvr_hmd.json",
+  "input_bindingui_mode": "hmd",
+  "input_source": {
+    "/user/head/proximity": {
+      "binding_image_point": [
+        250,
+        60
+      ],
+      "type": "button",
+      "order": 2
+    }
+  },
+  "default_bindings": [
+    {
+      "app_key": "steam.client",
+      "binding_url": "steam_client_bindings_flowvr_hmd.json"
+    }
+  ]
+}

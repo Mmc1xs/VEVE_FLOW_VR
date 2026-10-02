@@ -1,0 +1,77 @@
+{
+  "bindings": {
+    "/actions/legacy": {
+      "haptics": [
+        {
+          "output": "/actions/legacy/out/right_haptic",
+          "path": "/user/hand/right/output/haptic"
+        }
+      ],
+      "poses": [
+        {
+          "output": "/actions/legacy/in/Right_Pose",
+          "path": "/user/hand/right/pose/raw"
+        }
+      ],
+      "sources": [
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/legacy/in/right_grip_press"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/grip"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/legacy/in/right_applicationmenu_press"
+            }
+          },
+          "mode": "button",
+          "path": "/user/hand/right/input/application_menu"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/legacy/in/right_axis0_press"
+            },
+            "position": {
+              "output": "/actions/legacy/in/right_axis0_value"
+            },
+            "touch": {
+              "output": "/actions/legacy/in/right_axis0_touch"
+            }
+          },
+          "mode": "trackpad",
+          "path": "/user/hand/right/input/trackpad"
+        },
+        {
+          "inputs": {
+            "pull": {
+              "output": "/actions/legacy/in/right_axis1_value"
+            }
+          },
+          "mode": "trigger",
+          "path": "/user/hand/right/input/trigger"
+        },
+        {
+          "inputs": {
+            "click": {
+              "output": "/actions/legacy/in/right_axis1_press"
+            }
+          },
+          "mode": "button",
+          "parameters": {
+            "haptic_amplitude": "0"
+          },
+          "path": "/user/hand/right/input/trigger"
+        }
+      ]
+    }
+  },
+  "controller_type": "flowvr_keyboard_mouse",
+  "description": "",
+  "name": "Flow keyboard/mouse legacy bindings"
+}

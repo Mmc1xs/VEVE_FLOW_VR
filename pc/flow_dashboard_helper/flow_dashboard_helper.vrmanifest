@@ -1,0 +1,17 @@
+{
+	"source": "builtin",
+	"applications": [
+		{
+			"app_key": "flowvr.dashboard_helper",
+			"launch_type": "binary",
+			"binary_path_windows": "flow_dashboard_helper.exe",
+			"is_dashboard_overlay": true,
+			"strings": {
+				"en_us": {
+					"name": "Flow Dashboard Helper",
+					"description": "Opens the Desktop+ tab when no VR game is running"
+				}
+			}
+		}
+	]
+}

@@ -1,0 +1,17 @@
+# Normalize text to LF in the repository; Windows tools get CRLF on checkout.
+* text=auto
+# Shell scripts must stay LF to run.
+*.sh text eol=lf
+Wave_Native_SDK/samples/wvr_flow_probe/gradlew text eol=lf
+# Windows scripts stay CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+# Binary payloads.
+*.aar binary
+*.jar binary
+*.so binary
+*.mp4 binary
+*.h264 binary
+*.png binary
+*.jpg binary
+*.bmp binary

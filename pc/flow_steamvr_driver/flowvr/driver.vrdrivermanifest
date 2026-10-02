@@ -1,0 +1,11 @@
+{
+	"alwaysActivate": true,
+	"name" : "flowvr",
+	"directory" : "",
+	"redirectsDisplay" : true,
+	"resourceOnly" : false,
+	"hmd_presence" :
+	[
+		"*.*"
+	]
+}

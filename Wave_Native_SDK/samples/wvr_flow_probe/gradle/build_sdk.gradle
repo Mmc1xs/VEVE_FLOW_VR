@@ -1,0 +1,51 @@
+apply from: "$rootDir/gradle/build_base.gradle"
+def jniDir = "src/main/jni"
+def aarFilename = "wvr_client"
+
+android {
+    defaultConfig {
+        externalNativeBuild { ndkBuild {
+            def VR_SDK_ROOT = "${buildDir}/${aarFilename}"
+            arguments "VR_SDK_ROOT=$VR_SDK_ROOT"
+        }}
+        ndk {
+            abiFilters 'armeabi-v7a'
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path "${jniDir}/Android.mk"
+        }
+    }
+
+    buildTypes {
+        release {
+            externalNativeBuild { ndkBuild {
+                arguments "NDK_DEBUG=0"
+            }}
+        }
+        debug {
+            externalNativeBuild { ndkBuild {
+                arguments "NDK_DEBUG=1"
+            }}
+        }
+    }
+}
+
+dependencies {
+    compile 'com.htc.vr:wvr_client:+'
+}
+
+// unzip aar
+afterEvaluate {
+    def unzipDir = file("${buildDir}/${aarFilename}")
+    def artifacts = configurations.compile.resolvedConfiguration.resolvedArtifacts
+    artifacts.find { it.name == aarFilename }?.with { aar ->
+        copy {
+            println 'unzip: ' + aar
+            from zipTree(aar.file)
+            into unzipDir
+        }
+    }
+}

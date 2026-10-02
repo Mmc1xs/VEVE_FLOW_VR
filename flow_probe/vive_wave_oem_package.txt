@@ -1,0 +1,233 @@
+Service Resolver Table:
+  Non-Data Actions:
+      com.htc.vr.intent.action.COMPONENT_HOOK:
+        7849e3f vive.wave.vr.oem/com.htc.vr.component.VRComponentHookService filter 94a69ee
+          Action: "com.htc.vr.intent.action.COMPONENT_HOOK"
+      com.htc.vr.intent.action.OEMVRConfigService:
+        f68c30c vive.wave.vr.oem/.data.config.VRConfigService filter 17d38ec
+          Action: "com.htc.vr.intent.action.OEMVRConfigService"
+          Category: "com.htc.intent.category.VROEM"
+      android.intent.action.VRControllerOverlayService:
+        250e455 vive.wave.vr.oem/.controller.VRControllerOverlayService filter c7af7d8
+          Action: "android.intent.action.VRControllerOverlayService"
+      vive.wave.intent.action.VRSharingService:
+        c14e6a vive.wave.vr.oem/.features.VRSharingService filter 454e9f0
+          Action: "vive.wave.intent.action.VRSharingService"
+      com.htc.vr.intent.action.VRLOADING_OVERLAY_SERVICE:
+        82edf5b vive.wave.vr.oem/.overlay.VRLoadingOverlayService filter 384656d
+          Action: "com.htc.vr.intent.action.VRLOADING_OVERLAY_SERVICE"
+          Category: "com.htc.intent.category.VROEM"
+      com.htc.vr.singleton.notification.service:
+        f6503f8 vive.wave.vr.oem/.notification.VRNotificationService filter 508353e
+          Action: "com.htc.vr.singleton.notification.service"
+          Category: "com.htc.intent.category.VRCORE"
+      android.intent.action.VRMTPSERVICE:
+        f0870d1 vive.wave.vr.oem/.mtp.VRMTPService filter 213ae16
+          Action: "android.intent.action.VRMTPSERVICE"
+      com.htc.vr.intent.action.NOTIFY_OEM_SERVICE:
+        b9de736 vive.wave.vr.oem/.overlay.VRNotifyOEMService filter 59495a2
+          Action: "com.htc.vr.intent.action.NOTIFY_OEM_SERVICE"
+          Category: "com.htc.intent.category.VROEM"
+      vive.wave.action.VROEMSERVICE:
+        8721637 vive.wave.vr.oem/.VROEMService filter c3154b5
+          Action: "vive.wave.action.VROEMSERVICE"
+          Category: "android.intent.category.VRCORE"
+      com.htc.vive.kioskenabler.mode:
+        e267a4 vive.wave.vr.oem/.power.menu.VRPowerMenuService filter 1ce674a
+          Action: "android.intent.action.VRPOWERMENUSERVICE"
+          Action: "com.htc.vive.kioskenabler.mode"
+      android.intent.action.VRSAFETYWARNINGSERVICE:
+        8d2490d vive.wave.vr.oem/.volume.VRSafetyWarningService filter c700397
+          Action: "android.intent.action.VRSAFETYWARNINGSERVICE"
+      android.service.notification.NotificationListenerService:
+        d940c2 vive.wave.vr.oem/.notification.AndroidNotificationListenerService filter abbf9f permission android.permission.BIND_NOTIFICATION_LISTENER_SERVICE
+          Action: "android.service.notification.NotificationListenerService"
+          Category: "com.htc.intent.category.VRCORE"
+      android.intent.action.VRPOWERMENUSERVICE:
+        e267a4 vive.wave.vr.oem/.power.menu.VRPowerMenuService filter 1ce674a
+          Action: "android.intent.action.VRPOWERMENUSERVICE"
+          Action: "com.htc.vive.kioskenabler.mode"
+      com.htc.vr.intent.action.PINCODEOVERLAYSERVICE:
+        647ded3 vive.wave.vr.oem/.overlay.VRPinCodeOverlayService filter a93b984 permission vive.wave.vr.oem.overlay.ShowPinCodeKeyBoard
+          Action: "com.htc.vr.intent.action.PINCODEOVERLAYSERVICE"
+          Category: "com.htc.intent.category.VROEM"
+      android.intent.action.VRPROMPTHINTSERVICE:
+        cb05a10 vive.wave.vr.oem/.promptHint.VRPromptHintService filter ef8731
+          Action: "android.intent.action.VRPROMPTHINTSERVICE"
+      android.intent.action.SHOW_SCREENSHOT_OVERLAY:
+        ae76909 vive.wave.vr.oem/.features.overlay.ScreenShotAnimationOverlay filter 3274233
+          Action: "android.intent.action.SHOW_SCREENSHOT_OVERLAY"
+      vive.wave.intent.action.VRMiracastService:
+        c7ea70e vive.wave.vr.oem/.features.VRMiracastService filter 70eeb69
+          Action: "vive.wave.intent.action.VRMiracastService"
+      android.intent.action.VRCONFIRMATIONSERVICE:
+        ba7952f vive.wave.vr.oem/.overlay.VRConfirmationService filter 596b6bb
+          Action: "android.intent.action.VRCONFIRMATIONSERVICE"
+
+Permissions:
+  Permission [vive.wave.vr.oem.features.providerWrite] (729073c):
+    sourcePackage=vive.wave.vr.oem
+    uid=10033 gids=null type=0 prot=signature|privileged
+    perm=Permission{1148cc5 vive.wave.vr.oem.features.providerWrite}
+    packageSetting=PackageSetting{e02261a vive.wave.vr.oem/10033}
+
+Permissions:
+  Permission [vive.wave.oem.permissions.BROADCAST] (a2554b):
+    sourcePackage=vive.wave.vr.oem
+    uid=10033 gids=null type=0 prot=normal
+    perm=Permission{e1d5b28 vive.wave.oem.permissions.BROADCAST}
+    packageSetting=PackageSetting{e02261a vive.wave.vr.oem/10033}
+
+Permissions:
+  Permission [vive.wave.vr.oem.data.OEMDataWrite] (d363041):
+    sourcePackage=vive.wave.vr.oem
+    uid=10033 gids=null type=0 prot=signature|privileged
+    perm=Permission{60c89e6 vive.wave.vr.oem.data.OEMDataWrite}
+    packageSetting=PackageSetting{e02261a vive.wave.vr.oem/10033}
+
+Permissions:
+  Permission [vive.wave.vr.oem.overlay.ShowPinCodeKeyBoard] (33efb27):
+    sourcePackage=vive.wave.vr.oem
+    uid=10033 gids=null type=0 prot=signature|privileged
+    perm=Permission{98101d4 vive.wave.vr.oem.overlay.ShowPinCodeKeyBoard}
+    packageSetting=PackageSetting{e02261a vive.wave.vr.oem/10033}
+
+Permissions:
+  Permission [vive.wave.vr.oem.features.providerRead] (8748f7d):
+    sourcePackage=vive.wave.vr.oem
+    uid=10033 gids=null type=0 prot=normal
+    perm=Permission{5075e72 vive.wave.vr.oem.features.providerRead}
+    packageSetting=PackageSetting{e02261a vive.wave.vr.oem/10033}
+
+Permissions:
+  Permission [vive.wave.vr.oem.data.OEMDataRead] (11622c3):
+    sourcePackage=vive.wave.vr.oem
+    uid=10033 gids=null type=0 prot=normal
+    perm=Permission{ad66740 vive.wave.vr.oem.data.OEMDataRead}
+    packageSetting=PackageSetting{e02261a vive.wave.vr.oem/10033}
+
+Registered ContentProviders:
+  vive.wave.vr.oem/.features.VRCustomizedOEMService_provider:
+    Provider{c3fa679 vive.wave.vr.oem/.features.VRCustomizedOEMService_provider}
+  vive.wave.vr.oem/.data.OEMDataProvider:
+    Provider{668efbe vive.wave.vr.oem/.data.OEMDataProvider}
+  vive.wave.vr.oem/.holoride.HolorideProvider:
+    Provider{eae281f vive.wave.vr.oem/.holoride.HolorideProvider}
+
+ContentProvider Authorities:
+  [oem_data]:
+    Provider{668efbe vive.wave.vr.oem/.data.OEMDataProvider}
+      applicationInfo=ApplicationInfo{75ab76c vive.wave.vr.oem}
+  [vr_oem]:
+    Provider{eae281f vive.wave.vr.oem/.holoride.HolorideProvider}
+      applicationInfo=ApplicationInfo{75ab76c vive.wave.vr.oem}
+  [vive.wave.vr.oem.features.VRCustomizedOEMService_provider]:
+    Provider{c3fa679 vive.wave.vr.oem/.features.VRCustomizedOEMService_provider}
+      applicationInfo=ApplicationInfo{75ab76c vive.wave.vr.oem}
+
+Key Set Manager:
+  [vive.wave.vr.oem]
+      Signing KeySets: 1
+
+Packages:
+  Package [vive.wave.vr.oem] (e02261a):
+    userId=10033
+    pkg=Package{f0b3135 vive.wave.vr.oem}
+    codePath=/system/app/OEMService
+    resourcePath=/system/app/OEMService
+    legacyNativeLibraryDir=/system/app/OEMService/lib
+    primaryCpuAbi=armeabi-v7a
+    secondaryCpuAbi=null
+    versionCode=1 minSdk=25 targetSdk=29
+    versionName=aio.450.mainline.50-305816a
+    splits=[base]
+    apkSigningVersion=3
+    applicationInfo=ApplicationInfo{75ab76c vive.wave.vr.oem}
+    flags=[ SYSTEM HAS_CODE PERSISTENT ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ]
+    dataDir=/data/user/0/vive.wave.vr.oem
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    timeStamp=2024-03-08 12:27:57
+    firstInstallTime=2021-11-01 21:15:55
+    lastUpdateTime=2024-03-08 12:27:57
+    signatures=PackageSignatures{4c049ca version:3, signatures:[fe4b8571], past signatures:[]}
+    HTCFlags=0
+    hasHtcSignature=true
+    displayed=true, configuredButton=-1, configuredExtFlag=0
+    installPermissionsFixed=true
+    pkgFlags=[ SYSTEM HAS_CODE PERSISTENT ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    declared permissions:
+      vive.wave.vr.oem.overlay.ShowPinCodeKeyBoard: prot=signature|privileged, INSTALLED
+      vive.wave.vr.oem.data.OEMDataWrite: prot=signature|privileged, INSTALLED
+      vive.wave.vr.oem.data.OEMDataRead: prot=normal, INSTALLED
+      vive.wave.oem.permissions.BROADCAST: prot=normal, INSTALLED
+      vive.wave.vr.oem.features.providerWrite: prot=signature|privileged, INSTALLED
+      vive.wave.vr.oem.features.providerRead: prot=normal, INSTALLED
+    requested permissions:
+      com.htc.vr.permission.OVERLAY
+      android.permission.ACCESS_NOTIFICATION_POLICY
+      android.permission.RECEIVE_SMS
+      android.permission.READ_CONTACTS
+      com.htc.permission.APP_PLATFORM
+      com.htc.permission.APP_DEFAULT
+      android.permission.HARDWARE_TEST
+      android.permission.SHUTDOWN
+      android.permission.WAKE_LOCK
+      android.permission.DEVICE_POWER
+      android.permission.MANAGE_USB
+      com.htc.vr.core.server.VRDataWrite
+      com.htc.vr.core.server.VRDataRead
+      com.htc.vr.core.server.VRDataProvider
+      android.permission.BLUETOOTH
+      android.permission.BLUETOOTH_ADMIN
+      com.htc.vive.kioskenabler.BROADCAST
+      vive.wave.oem.permissions.BROADCAST
+      android.permission.READ_FRAME_BUFFER
+      com.htc.intent.action.SCREEN_SHOT
+      com.htc.intent.action.LOCK_SCREEN_SHOT
+      android.permission.CHANGE_WIFI_STATE
+      android.permission.SYSTEM_ALERT_WINDOW
+      android.permission.STATUS_BAR_SERVICE
+      android.permission.FOREGROUND_SERVICE
+      vive.wave.permission.APP_PLATFORM
+      android.permission.WRITE_EXTERNAL_STORAGE
+      android.permission.READ_EXTERNAL_STORAGE
+      android.permission.RECORD_AUDIO
+      android.permission.CAPTURE_AUDIO_OUTPUT
+    install permissions:
+      android.permission.ACCESS_NOTIFICATION_POLICY: granted=true
+      android.permission.SYSTEM_ALERT_WINDOW: granted=true
+      android.permission.SHUTDOWN: granted=true
+      com.htc.vr.core.server.VRDataWrite: granted=true
+      android.permission.FOREGROUND_SERVICE: granted=true
+      vive.wave.oem.permissions.BROADCAST: granted=true
+      com.htc.vr.device.qxrcamera.service.permission.BROADCAST: granted=true
+      android.permission.DEVICE_POWER: granted=true
+      android.permission.BLUETOOTH: granted=true
+      com.htc.vr.permission.OVERLAY: granted=true
+      android.permission.BLUETOOTH_ADMIN: granted=true
+      android.permission.MANAGE_USB: granted=true
+      android.permission.CAPTURE_AUDIO_OUTPUT: granted=true
+      android.permission.STATUS_BAR_SERVICE: granted=true
+      android.permission.HARDWARE_TEST: granted=true
+      com.htc.mobilevr.quickmenu2.platform.PFM_PERMISSION: granted=true
+      android.permission.CHANGE_WIFI_STATE: granted=true
+      com.htc.vr.core.server.VRDataProvider: granted=true
+      com.htc.permission.APP_PLATFORM: granted=true
+      com.htc.vr.core.server.VRDataRead: granted=true
+      android.permission.READ_FRAME_BUFFER: granted=true
+      android.permission.WAKE_LOCK: granted=true
+    User 0: ceDataInode=393330 installed=true hidden=false suspended=false stopped=false notLaunched=false enabled=0 instant=false virtual=false
+      gids=[3002, 3001]
+      runtime permissions:
+        android.permission.READ_EXTERNAL_STORAGE: granted=true, flags=[ GRANTED_BY_DEFAULT ]
+        android.permission.WRITE_EXTERNAL_STORAGE: granted=true, flags=[ GRANTED_BY_DEFAULT ]
+        android.permission.RECORD_AUDIO: granted=true, flags=[ GRANTED_BY_DEFAULT ]
+
+Package Changes:
+  Sequence number=0
+
+
+Compiler stats:
+  [vive.wave.vr.oem]
+     OEMService.apk - 2469
