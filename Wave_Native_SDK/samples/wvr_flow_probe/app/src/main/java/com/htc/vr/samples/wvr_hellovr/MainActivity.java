@@ -3,11 +3,15 @@ package com.htc.vr.samples.wvr_flow_probe;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.graphics.SurfaceTexture;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioTrack;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Surface;
@@ -50,6 +54,15 @@ public class MainActivity extends VRActivity {
     private static final int SOCKET_READ_TIMEOUT_MS = 15000;
     private static final String SOCKET_MAGIC = "FLOWH264";
     private static final String SOCKET_DISCOVERY_MAGIC = "FLOWH264_PC";
+    // PC audio (driver FlowAudioStreamer): same host as the video stream.
+    private static final int AUDIO_PORT = 8004;
+    private static final String AUDIO_MAGIC = "FLOWAUD1";
+    private static final int AUDIO_CHUNK_MS = 10;
+    private static final int AUDIO_TRACK_BUFFER_MS = 120;
+    // Queue cap: chunks beyond this are dropped so Wi-Fi bursts and clock drift can't pile up latency.
+    private static final int AUDIO_MAX_QUEUED_MS = 60;
+    // Silence written ahead of the first chunk after the queue ran dry, as a jitter cushion.
+    private static final int AUDIO_REFILL_PAD_MS = 20;
     private static final int STREAM_LAYOUT_MONO = 0;
     private static final boolean USE_SOCKET_H264_FEEDER = true;
     private static final boolean USE_RAW_H264_FEEDER = true;
@@ -140,6 +153,156 @@ public class MainActivity extends VRActivity {
     private static native void setFramePoseSequence(long ptsUs, int poseSequence);
     // Head poses go back to whichever PC we are streaming from.
     private static native void setPoseTargetHost(String host);
+
+    // Plays the PC's audio while the video stream is up; reconnects if the PC drops it
+    // (e.g. the Windows default output changed sample rate).
+    private static final class AudioThread extends Thread {
+        private final String mHost;
+        private volatile boolean mStop;
+        private volatile Socket mSocket;
+
+        AudioThread(String host) {
+            super("FlowProbeAudio");
+            mHost = host;
+        }
+
+        void requestStop() {
+            mStop = true;
+            Socket socket = mSocket;
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (Exception ignored) {
+                }
+            }
+            interrupt();
+            try {
+                join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Override
+        public void run() {
+            while (!mStop) {
+                try {
+                    playOnce();
+                } catch (Exception e) {
+                    if (!mStop) {
+                        Log.w(TAG, "audio stream ended: " + e);
+                    }
+                }
+                if (!mStop) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }
+            Log.i(TAG, "audio thread stopped");
+        }
+
+        private void playOnce() throws Exception {
+            Socket socket = new Socket();
+            mSocket = socket;
+            AudioTrack track = null;
+            try {
+                if (mStop) {
+                    return;
+                }
+                socket.connect(new InetSocketAddress(mHost, AUDIO_PORT), SOCKET_CONNECT_TIMEOUT_MS);
+                DataInputStream input = new DataInputStream(
+                        new BufferedInputStream(socket.getInputStream(), 16 * 1024));
+                byte[] magic = new byte[AUDIO_MAGIC.length()];
+                input.readFully(magic);
+                String magicText = new String(magic, StandardCharsets.US_ASCII);
+                if (!AUDIO_MAGIC.equals(magicText)) {
+                    throw new IllegalStateException("bad audio magic: " + magicText);
+                }
+                int version = input.readInt();
+                int sampleRate = input.readInt();
+                int channels = input.readInt();
+                if (channels != 2 || sampleRate < 8000 || sampleRate > 192000) {
+                    throw new IllegalStateException("unsupported audio format rate=" + sampleRate + " channels=" + channels);
+                }
+
+                final int bytesPerFrame = 4;
+                int minBuffer = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO,
+                        AudioFormat.ENCODING_PCM_16BIT);
+                int bufferBytes = Math.max(minBuffer, sampleRate * AUDIO_TRACK_BUFFER_MS / 1000 * bytesPerFrame);
+                AudioTrack.Builder builder = new AudioTrack.Builder()
+                        .setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build())
+                        .setAudioFormat(new AudioFormat.Builder()
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(sampleRate)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                                .build())
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .setBufferSizeInBytes(bufferBytes);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY);
+                }
+                track = builder.build();
+                track.play();
+                Log.i(TAG, "audio started host=" + mHost + ":" + AUDIO_PORT + " version=" + version
+                        + " rate=" + sampleRate + " trackBuffer=" + track.getBufferSizeInFrames()
+                        + " minBuffer=" + minBuffer / bytesPerFrame);
+
+                byte[] chunk = new byte[sampleRate * AUDIO_CHUNK_MS / 1000 * bytesPerFrame];
+                byte[] pad = new byte[sampleRate * AUDIO_REFILL_PAD_MS / 1000 * bytesPerFrame];
+                long maxQueuedFrames = (long) sampleRate * AUDIO_MAX_QUEUED_MS / 1000;
+                long writtenFrames = 0;
+                int received = 0;
+                int dropped = 0;
+                int refills = 0;
+                long nextLogNs = System.nanoTime() + 10000000000L;
+                while (!mStop) {
+                    input.readFully(chunk);
+                    ++received;
+                    long queuedFrames = writtenFrames - (track.getPlaybackHeadPosition() & 0xffffffffL);
+                    if (queuedFrames > maxQueuedFrames) {
+                        ++dropped;
+                    } else {
+                        if (queuedFrames <= 0) {
+                            track.write(pad, 0, pad.length);
+                            writtenFrames += pad.length / bytesPerFrame;
+                            ++refills;
+                        }
+                        track.write(chunk, 0, chunk.length);
+                        writtenFrames += chunk.length / bytesPerFrame;
+                    }
+                    long now = System.nanoTime();
+                    if (now >= nextLogNs) {
+                        nextLogNs = now + 10000000000L;
+                        Log.i(TAG, "audio chunks=" + received + " dropped=" + dropped + " refills=" + refills
+                                + " queuedMs=" + queuedFrames * 1000 / sampleRate
+                                + " underruns=" + track.getUnderrunCount());
+                        received = 0;
+                        dropped = 0;
+                        refills = 0;
+                    }
+                }
+            } finally {
+                mSocket = null;
+                try {
+                    socket.close();
+                } catch (Exception ignored) {
+                }
+                if (track != null) {
+                    try {
+                        track.stop();
+                    } catch (Exception ignored) {
+                    }
+                    track.release();
+                }
+            }
+        }
+    }
 
     private static final class DecoderThread extends Thread {
         private final AssetManager mAssets;
@@ -256,10 +419,13 @@ public class MainActivity extends VRActivity {
         private boolean playSocketH264Once() {
             MediaCodec codec = null;
             Socket socket = null;
+            AudioThread audio = null;
             try {
                 socket = connectSocket();
                 socket.setSoTimeout(SOCKET_READ_TIMEOUT_MS);
                 setPoseTargetHost(socket.getInetAddress().getHostAddress());
+                audio = new AudioThread(socket.getInetAddress().getHostAddress());
+                audio.start();
 
                 DataInputStream input = new DataInputStream(
                         new BufferedInputStream(socket.getInputStream(), 64 * 1024));
@@ -390,6 +556,9 @@ public class MainActivity extends VRActivity {
                 Log.w(TAG, "socket decoder unavailable, falling back to raw asset", e);
                 return false;
             } finally {
+                if (audio != null) {
+                    audio.requestStop();
+                }
                 if (codec != null) {
                     try {
                         codec.stop();

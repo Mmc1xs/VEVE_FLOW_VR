@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include "flow_audio_streamer.h"
 #include "hand_controller.h"
 #include "hmd_device_driver.h"
 #include "keyboard_mouse_controller.h"
@@ -29,4 +30,5 @@ private:
 	std::unique_ptr<FlowVirtualDisplayDevice> my_virtual_display_device_;
 	std::unique_ptr<FlowKeyboardMouseControllerDevice> my_keyboard_mouse_controller_;
 	std::unique_ptr<FlowHandControllerDevice> my_hand_controllers_[ 2 ];
+	std::unique_ptr<FlowAudioStreamer> my_audio_streamer_;
 };

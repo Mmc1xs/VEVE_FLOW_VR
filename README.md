@@ -3,6 +3,7 @@
 PC 上的 SteamVR 畫面用 NVENC 編成 H.264，經 Wi-Fi 串流到 VIVE Flow；Flow 把頭部姿態回傳給 SteamVR。
 主要用途：在 Flow 裡看 PC 桌面（Desktop+）；Flow 內建的手部追蹤當作兩支 Index 控制器，USB 數字小鍵盤補上搖桿與按鍵
 （手不在視野內時，小鍵盤是跟著頭部的雷射控制器）。
+PC 播放的聲音（Windows 預設輸出裝置）同步串流到 Flow 的喇叭，PC 喇叭照常出聲。
 
 ```
 ┌──────────────────────────── PC (Windows) ─────────────────────────────┐          ┌───── VIVE Flow ──────┐
@@ -118,6 +119,7 @@ Flow 的鏡頭追蹤雙手（每手 26 個關節），驅動把它們變成 Stea
 | 設定 | 位置 | 套用方式 |
 |---|---|---|
 | 解析度 3200×1600、位元率 100 Mbps、NVENC P4、FOV、IPD | `pc/flow_steamvr_driver/flowvr/resources/settings/default.vrsettings` | `build.ps1`（複製到 dist）後重開 SteamVR |
+| PC 聲音串流到 Flow 開關 | 同上 `driver_flowvr.enable_audio` | 同上 |
 | 數字鍵盤控制器開關 | 同上 `driver_flowvr.enable_keypad_controller` | 同上 |
 | 手部 Index 控制器開關、雷射俯仰微調 | 同上 `driver_flowvr.enable_hand_controllers`、`hand_pitch_offset_deg` | 同上 |
 | Flow 手部追蹤（預設開） | `hellovr.cpp` 的 `FLOW_DEFAULT_HANDS`；即時開關 `adb shell setprop debug.flow.hands 0/1` | APK 或 setprop |
@@ -125,7 +127,7 @@ Flow 的鏡頭追蹤雙手（每手 26 個關節），驅動把它們變成 Stea
 | SteamVR overlay 品質 High、閒置 10 分鐘進入待機 | `scripts/install.ps1` 開頭 `$SteamVRSettings` | `install.ps1`（存在 `steamvr.vrsettings`，重開機仍有效） |
 | Flow 眼睛緩衝 1600、銳化（預設關） | `.../wvr_flow_probe/app/src/main/jni/hellovr.cpp` 開頭的 `FLOW_*` | `build.ps1` + `install.ps1` |
 
-網路：TCP 8001（影像 PC→Flow）、UDP 8002（頭部姿態與雙手 Flow→PC、discovery PC→Flow）、UDP 127.0.0.1:8003（鍵盤→驅動）。
+網路：TCP 8001（影像 PC→Flow）、UDP 8002（頭部姿態與雙手 Flow→PC、discovery PC→Flow）、UDP 127.0.0.1:8003（鍵盤→驅動）、TCP 8004（聲音 PC→Flow，48 kHz 16-bit 立體聲 PCM）。
 Windows 防火牆若詢問，請允許 SteamVR (vrserver) 使用私人網路。
 
 ## 開發模式（不戴頭盔測試）
@@ -161,6 +163,7 @@ powershell -ExecutionPolicy Bypass -File scripts\dev-awake.ps1 -Off   # 關閉
 - Flow 記錄：`adb logcat -s FlowProbe vrsample`（`stream rates` 收/解碼幀率、`timewarp poseAge` 往返延遲，1 步 ≈ 13.3 ms）
 - 背景程式記錄：`pc\flow_dashboard_helper\build\dist\flow_dashboard_helper.log`
 - 銳化即時調整：`adb shell setprop debug.flow.sharpen 0.8`（0–2，0 = 關）
+- 聲音：SteamVR 記錄 `Flow audio: ...`（擷取格式、每 10 秒送出秒數）；Flow 記錄的 `audio` 行（每 10 秒收到/丟棄的 10 ms 區塊、補靜音次數、排隊延遲 `queuedMs`、斷音累計）
 - 手部：SteamVR 記錄 `Steam\logs\vrserver.txt` 每 2 秒一行 `Flow hand ...`（捏合、Trigger、各指彎曲、Grip、鍵盤）；Flow 記錄的 `hands` 行（追蹤頻率、左右手有效比例、捏合比例）
 
 ## 已知限制

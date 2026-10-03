@@ -30,6 +30,12 @@ vr::EVRInitError MyDeviceProvider::Init( vr::IVRDriverContext *pDriverContext )
 		my_hand_controllers_[ FlowHand_Right ] = std::make_unique< FlowHandControllerDevice >( FlowHand_Right );
 	}
 	DriverLog( "Flow hand controllers %s", hands_enabled ? "enabled" : "disabled" );
+	// PC audio (loopback of the Windows default output) streamed to the Flow on TCP 8004.
+	if ( vr::VRSettings()->GetBool( "driver_flowvr", "enable_audio" ) )
+	{
+		my_audio_streamer_ = std::make_unique< FlowAudioStreamer >();
+	}
+	DriverLog( "Flow audio %s", my_audio_streamer_ ? "enabled" : "disabled" );
 
 	// TrackedDeviceAdded returning true means we have had our device added to SteamVR.
 	if ( !vr::VRServerDriverHost()->TrackedDeviceAdded( my_hmd_device_->MyGetSerialNumber().c_str(), vr::TrackedDeviceClass_HMD, my_hmd_device_.get() ) )
@@ -145,6 +151,7 @@ void MyDeviceProvider::LeaveStandby()
 //-----------------------------------------------------------------------------
 void MyDeviceProvider::Cleanup()
 {
+	my_audio_streamer_ = nullptr;
 	// Our controller devices will have already deactivated. Let's now destroy them.
 	my_keyboard_mouse_controller_ = nullptr;
 	my_hand_controllers_[ FlowHand_Left ] = nullptr;

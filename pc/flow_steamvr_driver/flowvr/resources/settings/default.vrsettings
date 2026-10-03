@@ -5,6 +5,7 @@
 		"model_number": "HTC VIVE Flow",
 		"enable_keypad_controller": true,
 		"enable_hand_controllers": true,
+		"enable_audio": true,
 		"hand_pitch_offset_deg": 0.0
 	},
 	"flowvr_display": {

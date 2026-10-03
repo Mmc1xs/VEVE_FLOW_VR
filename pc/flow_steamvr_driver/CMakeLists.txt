@@ -56,6 +56,8 @@ add_library(${DRIVER_NAME} SHARED
   src/virtual_display_device.h
   src/virtual_display_device.cpp
   src/flow_pose_sync.h
+  src/flow_audio_streamer.h
+  src/flow_audio_streamer.cpp
 )
 
 target_include_directories(${DRIVER_NAME} PRIVATE
@@ -74,6 +76,7 @@ target_link_libraries(${DRIVER_NAME} PRIVATE
   d3d11
   dxgi
   d3dcompiler
+  ole32
 )
 
 set_target_properties(${DRIVER_NAME} PROPERTIES
