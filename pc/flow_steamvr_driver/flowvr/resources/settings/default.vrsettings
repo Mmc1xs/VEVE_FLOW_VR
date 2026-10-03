@@ -3,7 +3,9 @@
 		"enable": true,
 		"serial_number": "VIVEFLOW-STEAMVR-001",
 		"model_number": "HTC VIVE Flow",
-		"enable_keypad_controller": true
+		"enable_keypad_controller": true,
+		"enable_hand_controllers": true,
+		"hand_pitch_offset_deg": 0.0
 	},
 	"flowvr_display": {
 	    "window_x": 0,

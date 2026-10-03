@@ -22,6 +22,14 @@ vr::EVRInitError MyDeviceProvider::Init( vr::IVRDriverContext *pDriverContext )
 		my_keyboard_mouse_controller_ = std::make_unique< FlowKeyboardMouseControllerDevice >();
 	}
 	DriverLog( "Flow keypad controller %s", my_keyboard_mouse_controller_ ? "enabled" : "disabled" );
+	// Index controllers driven by the Flow's hand tracking.
+	const bool hands_enabled = vr::VRSettings()->GetBool( "driver_flowvr", "enable_hand_controllers" );
+	if ( hands_enabled )
+	{
+		my_hand_controllers_[ FlowHand_Left ] = std::make_unique< FlowHandControllerDevice >( FlowHand_Left );
+		my_hand_controllers_[ FlowHand_Right ] = std::make_unique< FlowHandControllerDevice >( FlowHand_Right );
+	}
+	DriverLog( "Flow hand controllers %s", hands_enabled ? "enabled" : "disabled" );
 
 	// TrackedDeviceAdded returning true means we have had our device added to SteamVR.
 	if ( !vr::VRServerDriverHost()->TrackedDeviceAdded( my_hmd_device_->MyGetSerialNumber().c_str(), vr::TrackedDeviceClass_HMD, my_hmd_device_.get() ) )
@@ -41,6 +49,16 @@ vr::EVRInitError MyDeviceProvider::Init( vr::IVRDriverContext *pDriverContext )
 	{
 		DriverLog( "Failed to create keyboard/mouse controller device!" );
 		return vr::VRInitError_Driver_Unknown;
+	}
+
+	for ( const auto &hand : my_hand_controllers_ )
+	{
+		if ( hand != nullptr &&
+		     !vr::VRServerDriverHost()->TrackedDeviceAdded( hand->MyGetSerialNumber().c_str(), vr::TrackedDeviceClass_Controller, hand.get() ) )
+		{
+			DriverLog( "Failed to create hand controller device %s!", hand->MyGetSerialNumber().c_str() );
+			return vr::VRInitError_Driver_Unknown;
+		}
 	}
 
 	return vr::VRInitError_None;
@@ -79,6 +97,13 @@ void MyDeviceProvider::RunFrame()
 	if ( my_keyboard_mouse_controller_ != nullptr )
 	{
 		my_keyboard_mouse_controller_->MyRunFrame();
+	}
+	for ( const auto &hand : my_hand_controllers_ )
+	{
+		if ( hand != nullptr )
+		{
+			hand->MyRunFrame();
+		}
 	}
 
 
@@ -122,6 +147,8 @@ void MyDeviceProvider::Cleanup()
 {
 	// Our controller devices will have already deactivated. Let's now destroy them.
 	my_keyboard_mouse_controller_ = nullptr;
+	my_hand_controllers_[ FlowHand_Left ] = nullptr;
+	my_hand_controllers_[ FlowHand_Right ] = nullptr;
 	my_virtual_display_device_ = nullptr;
 	my_hmd_device_ = nullptr;
 }

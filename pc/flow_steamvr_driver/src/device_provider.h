@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include "hand_controller.h"
 #include "hmd_device_driver.h"
 #include "keyboard_mouse_controller.h"
 #include "openvr_driver.h"
@@ -27,4 +28,5 @@ private:
 	std::unique_ptr<MyHMDControllerDeviceDriver> my_hmd_device_;
 	std::unique_ptr<FlowVirtualDisplayDevice> my_virtual_display_device_;
 	std::unique_ptr<FlowKeyboardMouseControllerDevice> my_keyboard_mouse_controller_;
+	std::unique_ptr<FlowHandControllerDevice> my_hand_controllers_[ 2 ];
 };

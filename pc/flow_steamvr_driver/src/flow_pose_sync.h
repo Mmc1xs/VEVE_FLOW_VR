@@ -19,3 +19,6 @@ constexpr int kProp_FlowStreamConnected_Bool = 10001; // vr::Prop_VendorSpecific
 // never calibrated, seated apps (most Unity titles) get invalid poses and the compositor fades
 // them to trackingLossColor. pc/flow_dashboard_helper fills in the chaperone data if missing.
 constexpr uint64_t kFlowTrackingUniverseId = 0x464C4F57;
+
+// Added to the Flow's head-origin heights (head and hands) so the head sits at standing height.
+constexpr float kFlowStandingHeightOffset = 1.0f;

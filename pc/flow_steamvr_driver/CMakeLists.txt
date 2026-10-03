@@ -48,6 +48,9 @@ add_library(${DRIVER_NAME} SHARED
   src/hmd_device_driver.cpp
   src/keyboard_mouse_controller.h
   src/keyboard_mouse_controller.cpp
+  src/hand_controller.h
+  src/hand_controller.cpp
+  src/flow_shared_input.h
   src/flow_nvenc_encoder.h
   src/flow_nvenc_encoder.cpp
   src/virtual_display_device.h

@@ -45,6 +45,7 @@
 
         <meta-data android:name="minWaveSDKVersion" android:value="1" />
     </application>
-    <uses-feature android:name="wave.feature.handtracking" android:required="false" />
+    <!-- Wave only enables hand tracking when the feature is required (FLAG_REQUIRED). -->
+    <uses-feature android:name="wave.feature.handtracking" android:required="true" />
     <uses-feature android:glEsVersion="0x00030000" />
 </manifest>

@@ -50,9 +50,6 @@ private:
 	std::atomic< bool > is_active_{ false };
 	std::thread pose_update_thread_;
 	std::thread keypad_receive_thread_;
-	// Pressed-button mask from the dashboard helper and when it last arrived (steady ms).
-	std::atomic< uint32_t > keypad_buttons_{ 0 };
-	std::atomic< int64_t > keypad_updated_ms_{ 0 };
 
 	std::string model_number_{ "Flow Keypad Controller" };
 	std::string serial_number_{ "FLOW-KBM-RIGHT-001" };

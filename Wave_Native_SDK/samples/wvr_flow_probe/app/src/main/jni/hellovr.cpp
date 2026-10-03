@@ -23,6 +23,7 @@
 #define FLOW_LOG_TAG "FLOW_MIN_PROBE"
 #define FLOW_POSE_HOST "192.168.0.102" // until the stream socket tells us the PC address
 #define FLOW_POSE_PORT 8002
+#define FLOW_HAND_JOINTS 26u // Wave natural hand tracker joints (WVR_HandJoint)
 
 // Virtual desktop screen placement, in meters.
 #define FLOW_SCREEN_DISTANCE 2.0f
@@ -33,6 +34,7 @@
 #define FLOW_EYE_BUFFER_SIZE 1600u
 // Unsharp-mask strength for the streamed picture (override: debug.flow.sharpen).
 #define FLOW_DEFAULT_SHARPEN 0.0f // off: no visible gain on the Flow (tested 0..2)
+#define FLOW_DEFAULT_HANDS 1 // hand tracking feeds the PC's Index controllers; debug.flow.hands=0 turns it off
 
 static jobject gActivity = nullptr;
 static jmethodID gStartDecoderMethod = nullptr;
@@ -491,6 +493,107 @@ void MainApplication::updateSharpenAmount() {
     }
 }
 
+// The natural (camera) hand tracker runs by default; `adb shell setprop debug.flow.hands 0`
+// stops it (and 1 restarts it) on the live stream.
+void MainApplication::updateHandTrackingEnabled() {
+    char value[PROP_VALUE_MAX] = {};
+    const bool wanted = __system_property_get("debug.flow.hands", value) > 0 ? atoi(value) != 0 : FLOW_DEFAULT_HANDS != 0;
+    if (wanted == mHandsActive) {
+        return;
+    }
+    if (!wanted) {
+        WVR_StopHandTracking(WVR_HandTrackerType_Natural);
+        mHandsActive = false;
+        LOGI("%s hands stopped", FLOW_LOG_TAG);
+        return;
+    }
+    const WVR_Result started = WVR_StartHandTracking(WVR_HandTrackerType_Natural);
+    uint32_t jointCount = 0;
+    const WVR_Result counted = WVR_GetHandJointCount(WVR_HandTrackerType_Natural, &jointCount);
+    LOGI("%s hands start result=%d jointCountResult=%d joints=%u", FLOW_LOG_TAG, started, counted, jointCount);
+    if (started != WVR_Success || counted != WVR_Success || jointCount == 0) {
+        if (started == WVR_Success) {
+            WVR_StopHandTracking(WVR_HandTrackerType_Natural);
+        }
+        return; // retried on the next property poll
+    }
+    mHandJointCount = jointCount;
+    for (int hand = 0; hand < 2; ++hand) {
+        mHandJoints[hand].assign(jointCount, WVR_Pose_t{});
+    }
+    mHandsActive = true;
+}
+
+void MainApplication::updateHands() {
+    if (!mHandsActive) {
+        return;
+    }
+    mHandData.left.jointCount = mHandJointCount;
+    mHandData.left.joints = mHandJoints[0].data();
+    mHandData.right.jointCount = mHandJointCount;
+    mHandData.right.joints = mHandJoints[1].data();
+
+    timeval before;
+    gettimeofday(&before, nullptr);
+    const WVR_Result result = WVR_GetHandTrackingData(WVR_HandTrackerType_Natural,
+                                                      WVR_HandModelType_WithoutController,
+                                                      WVR_PoseOriginModel_OriginOnHead,
+                                                      &mHandData, &mHandPose);
+    timeval after;
+    gettimeofday(&after, nullptr);
+    const uint64_t usec = elapsedUsec(after, before);
+    ++mHandQueries;
+    mHandQueryTotalUsec += usec;
+    if (usec > mHandQueryMaxUsec) {
+        mHandQueryMaxUsec = usec;
+    }
+    if (result != WVR_Success) {
+        ++mHandQueryFailures;
+        return;
+    }
+    if (mHandData.timestamp != mHandLastTimestamp) {
+        mHandLastTimestamp = mHandData.timestamp;
+        ++mHandNewSamples;
+    }
+    sendHandPacket();
+    const WVR_HandJointData_t *hands[2] = {&mHandData.left, &mHandData.right};
+    const WVR_HandPoseState_t *poses[2] = {&mHandPose.left, &mHandPose.right};
+    for (int hand = 0; hand < 2; ++hand) {
+        if (!hands[hand]->isValidPose) {
+            continue;
+        }
+        ++mHandValid[hand];
+        if (poses[hand]->base.type == WVR_HandPoseType_Pinch && poses[hand]->pinch.strength >= 0.8f) {
+            ++mHandPinching[hand];
+        }
+    }
+}
+
+void MainApplication::logHandsIfNeeded(float seconds) {
+    if (!mHandsActive && mHandQueries == 0) {
+        return;
+    }
+    const float queries = mHandQueries > 0 ? static_cast<float>(mHandQueries) : 1.0f;
+    const WVR_Vector3f_t &wristL = mHandJoints[0].empty() ? WVR_Vector3f_t{} : mHandJoints[0][WVR_HandJoint_Wrist].position;
+    const WVR_Vector3f_t &wristR = mHandJoints[1].empty() ? WVR_Vector3f_t{} : mHandJoints[1][WVR_HandJoint_Wrist].position;
+    LOGI("%s hands queries=%u failures=%u trackerHz=%.1f validL=%.0f%% validR=%.0f%% pinchL=%.0f%% pinchR=%.0f%% "
+         "queryAvgUs=%llu queryMaxUs=%llu confL=%.2f confR=%.2f wristL=%.2f,%.2f,%.2f wristR=%.2f,%.2f,%.2f",
+         FLOW_LOG_TAG, mHandQueries, mHandQueryFailures, mHandNewSamples / seconds,
+         100.0f * mHandValid[0] / queries, 100.0f * mHandValid[1] / queries,
+         100.0f * mHandPinching[0] / queries, 100.0f * mHandPinching[1] / queries,
+         static_cast<unsigned long long>(mHandQueries > 0 ? mHandQueryTotalUsec / mHandQueries : 0),
+         static_cast<unsigned long long>(mHandQueryMaxUsec),
+         mHandData.left.confidence, mHandData.right.confidence,
+         wristL.v[0], wristL.v[1], wristL.v[2], wristR.v[0], wristR.v[1], wristR.v[2]);
+    mHandQueries = 0;
+    mHandQueryFailures = 0;
+    mHandValid[0] = mHandValid[1] = 0;
+    mHandPinching[0] = mHandPinching[1] = 0;
+    mHandQueryTotalUsec = 0;
+    mHandQueryMaxUsec = 0;
+    mHandNewSamples = 0;
+}
+
 void MainApplication::initEyeMatrices() {
     const WVR_Eye eyes[2] = {WVR_Eye_Left, WVR_Eye_Right};
     for (int i = 0; i < 2; ++i) {
@@ -691,7 +794,9 @@ bool MainApplication::renderFrame() {
     ++mTotalFrames;
     if (mTotalFrames % 75 == 1) {
         updateSharpenAmount();
+        updateHandTrackingEnabled();
     }
+    updateHands();
     recordPoseAge();
     logProbeIfNeeded();
     usleep(1);
@@ -741,6 +846,20 @@ void MainApplication::shutdownPoseSocket() {
         close(mPoseSocket);
         mPoseSocket = -1;
     }
+}
+
+// Sends a datagram to the PC's pose port (address learned from the stream socket).
+static void sendToPc(int socket, const void *data, size_t size) {
+    sockaddr_in target = {};
+    target.sin_family = AF_INET;
+    target.sin_port = htons(FLOW_POSE_PORT);
+    uint32_t targetAddr = gPoseTargetAddr.load();
+    if (targetAddr != 0) {
+        target.sin_addr.s_addr = targetAddr;
+    } else {
+        inet_pton(AF_INET, FLOW_POSE_HOST, &target.sin_addr);
+    }
+    sendto(socket, data, size, 0, reinterpret_cast<sockaddr *>(&target), sizeof(target));
 }
 
 static void matrixToQuat(const WVR_Matrix4f_t &matrix, float *x, float *y, float *z, float *w) {
@@ -811,16 +930,40 @@ void MainApplication::sendPosePacket(const WVR_PoseState_t &pose) {
     packet.z = pose.poseMatrix.m[2][3];
     matrixToQuat(pose.poseMatrix, &packet.qx, &packet.qy, &packet.qz, &packet.qw);
 
-    sockaddr_in target = {};
-    target.sin_family = AF_INET;
-    target.sin_port = htons(FLOW_POSE_PORT);
-    uint32_t targetAddr = gPoseTargetAddr.load();
-    if (targetAddr != 0) {
-        target.sin_addr.s_addr = targetAddr;
-    } else {
-        inet_pton(AF_INET, FLOW_POSE_HOST, &target.sin_addr);
+    sendToPc(mPoseSocket, &packet, sizeof(packet));
+}
+
+// Both hands' joints (head-origin space, like the head pose) and index pinch strength, every
+// frame while hand tracking runs. driver_flowvr turns them into Index controllers.
+void MainApplication::sendHandPacket() {
+    if (mPoseSocket < 0 || mHandJointCount != FLOW_HAND_JOINTS) {
+        return;
     }
-    sendto(mPoseSocket, &packet, sizeof(packet), 0, reinterpret_cast<sockaddr *>(&target), sizeof(target));
+#pragma pack(push, 1)
+    struct HandPacket {
+        uint32_t magic; // "FLH1"
+        uint32_t sequence;
+        uint8_t valid[2]; // [0] left, [1] right
+        uint8_t reserved[2];
+        float pinch[2];
+        float joints[2][FLOW_HAND_JOINTS][3];
+    };
+#pragma pack(pop)
+    HandPacket packet = {};
+    packet.magic = 0x31484C46;
+    packet.sequence = mPoseSequence;
+    const WVR_HandJointData_t *hands[2] = {&mHandData.left, &mHandData.right};
+    const WVR_HandPoseState_t *poses[2] = {&mHandPose.left, &mHandPose.right};
+    for (int hand = 0; hand < 2; ++hand) {
+        packet.valid[hand] = hands[hand]->isValidPose ? 1 : 0;
+        const WVR_HandPoseState_t &pose = *poses[hand];
+        packet.pinch[hand] = pose.base.type == WVR_HandPoseType_Pinch && pose.pinch.finger == WVR_FingerType_Index
+                                 ? pose.pinch.strength : 0.0f;
+        for (uint32_t joint = 0; joint < FLOW_HAND_JOINTS; ++joint) {
+            memcpy(packet.joints[hand][joint], mHandJoints[hand][joint].position.v, sizeof(packet.joints[hand][joint]));
+        }
+    }
+    sendToPc(mPoseSocket, &packet, sizeof(packet));
 }
 
 // Called once per rendered frame in stereo mode: how many pose updates (~13 ms each at 75 Hz)
@@ -878,6 +1021,7 @@ void MainApplication::logProbeIfNeeded() {
              static_cast<float>(mNewVideoFrames) / (static_cast<float>(usec) / 1000000.0f),
              gVideoWidth.load(), gVideoHeight.load());
     }
+    logHandsIfNeeded(static_cast<float>(usec) / 1000000.0f);
     mPoseAgeTotal = 0;
     mPoseAgeCount = 0;
     mPoseAgeMax = 0;

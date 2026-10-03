@@ -3,10 +3,12 @@
 
 #include "driverlog.h"
 #include "flow_pose_sync.h"
+#include "flow_shared_input.h"
 #include "vrmath.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <string.h>
 
 #ifdef _WIN32
@@ -213,7 +215,7 @@ vr::DriverPose_t MyHMDControllerDeviceDriver::GetPose()
 	pose.qRotation.w = flow_pose_fresh ? flow_pose.qw : 1.0;
 
 	pose.vecPosition[ 0 ] = flow_pose_fresh ? flow_pose.x : 0.0;
-	pose.vecPosition[ 1 ] = flow_pose_fresh ? flow_pose.y + 1.0 : 1.0;
+	pose.vecPosition[ 1 ] = ( flow_pose_fresh ? flow_pose.y : 0.0 ) + kFlowStandingHeightOffset;
 	pose.vecPosition[ 2 ] = flow_pose_fresh ? flow_pose.z : 0.0;
 
 	// The pose we provided is valid.
@@ -290,19 +292,48 @@ void MyHMDControllerDeviceDriver::MyPoseReceiveThread()
 		float qz;
 		float qw;
 	};
+	// Both hands, sent by the Flow every frame while hand tracking runs (head-origin space).
+	struct HandPacket
+	{
+		uint32_t magic; // "FLH1"
+		uint32_t sequence;
+		uint8_t valid[ 2 ]; // [0] left, [1] right
+		uint8_t reserved[ 2 ];
+		float pinch[ 2 ];
+		float joints[ 2 ][ FlowHandJoint_Count ][ 3 ];
+	};
 #pragma pack(pop)
+	constexpr uint32_t kHandPacketMagic = 0x31484C46;
 
 	while ( is_active_ )
 	{
-		Packet packet{};
+		char buffer[ 1500 ];
 		sockaddr_in from{};
 		int from_len = sizeof( from );
-		int received = recvfrom( socket_handle, reinterpret_cast< char * >( &packet ), sizeof( packet ), 0,
-		                         reinterpret_cast< sockaddr * >( &from ), &from_len );
+		const int received = recvfrom( socket_handle, buffer, sizeof( buffer ), 0,
+		                               reinterpret_cast< sockaddr * >( &from ), &from_len );
+		if ( received == sizeof( HandPacket ) && *reinterpret_cast< const uint32_t * >( buffer ) == kHandPacketMagic )
+		{
+			HandPacket hands{};
+			std::memcpy( &hands, buffer, sizeof( hands ) );
+			const auto now = std::chrono::steady_clock::now();
+			for ( int side = 0; side < 2; ++side )
+			{
+				FlowHandSample sample{};
+				sample.valid = hands.valid[ side ] != 0;
+				sample.pinch = hands.pinch[ side ];
+				std::memcpy( sample.joints, hands.joints[ side ], sizeof( sample.joints ) );
+				sample.received_at = now;
+				g_flow_hands.Store( static_cast< FlowHandSide >( side ), sample );
+			}
+			continue;
+		}
+		Packet packet{};
 		if ( received != sizeof( packet ) )
 		{
 			continue;
 		}
+		std::memcpy( &packet, buffer, sizeof( packet ) );
 		if ( packet.magic != 0x31504C46 )
 		{
 			continue;

@@ -8,6 +8,7 @@
 #include <GLES3/gl3.h>
 #include <wvr/wvr.h>
 #include <wvr/wvr_device.h>
+#include <wvr/wvr_hand.h>
 #include <wvr/wvr_render.h>
 
 class MainApplication {
@@ -49,10 +50,14 @@ private:
     void initPoseSocket();
     void shutdownPoseSocket();
     void sendPosePacket(const WVR_PoseState_t &pose);
+    void sendHandPacket();
     bool renderEye(WVR_Eye eye, void *queue, std::vector<EyeTarget> *targets, uint32_t index);
     void logProbeIfNeeded();
     void recordPoseAge();
     void updateSharpenAmount();
+    void updateHandTrackingEnabled();
+    void updateHands();
+    void logHandsIfNeeded(float seconds);
     const WVR_PoseState_t *findSentPose(uint32_t sequence) const;
 
     WVR_DevicePosePair_t mDevicePairs[WVR_DEVICE_COUNT_LEVEL_1];
@@ -118,6 +123,21 @@ private:
     uint32_t mPoseAgeMisses = 0;
     int64_t mLastFrameTimestampNs = 0;
     uint32_t mNewVideoFrames = 0; // distinct decoded frames latched since last log
+
+    // Hand tracking (on by default; `adb shell setprop debug.flow.hands 0|1` toggles it).
+    bool mHandsActive = false;
+    uint32_t mHandJointCount = 0;
+    std::vector<WVR_Pose_t> mHandJoints[2]; // [0] left, [1] right
+    WVR_HandTrackingData_t mHandData = {};
+    WVR_HandPoseData_t mHandPose = {};
+    uint32_t mHandQueries = 0;
+    uint32_t mHandQueryFailures = 0;
+    uint32_t mHandValid[2] = {};
+    uint32_t mHandPinching[2] = {}; // index pinch strength >= 0.8
+    uint64_t mHandQueryTotalUsec = 0;
+    uint64_t mHandQueryMaxUsec = 0;
+    int64_t mHandLastTimestamp = 0;
+    uint32_t mHandNewSamples = 0;   // queries that returned a new tracker timestamp
 };
 
 void FlowProbe_SetActivity(JNIEnv *env, jobject activity);

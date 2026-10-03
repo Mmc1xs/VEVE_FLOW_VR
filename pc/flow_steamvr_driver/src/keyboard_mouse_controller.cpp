@@ -3,6 +3,7 @@
 
 #include "driverlog.h"
 #include "flow_pose_sync.h"
+#include "flow_shared_input.h"
 #include "vrmath.h"
 
 #include <algorithm>
@@ -30,34 +31,11 @@ namespace
 {
 constexpr uint16_t kKeypadPort = 8003;
 constexpr uint32_t kKeypadMagic = 0x31504B46; // "FKP1"
-// The helper repeats its state every 100 ms; without updates, release everything so a closed
-// helper cannot leave a button stuck down.
-constexpr auto kKeypadStateTimeout = std::chrono::milliseconds( 500 );
-
-// Bits of the mask sent by the helper (keep in sync with flow_dashboard_helper/main.cpp).
-enum KeypadButton : uint32_t
-{
-	KeypadButton_Trigger = 1u << 0,      // keypad 5
-	KeypadButton_Grip = 1u << 1,         // keypad 0 / Ins
-	KeypadButton_TrackpadClick = 1u << 2, // keypad Enter
-	KeypadButton_Up = 1u << 3,           // keypad + or 8
-	KeypadButton_Down = 1u << 4,         // keypad - or 2
-	KeypadButton_Left = 1u << 5,         // keypad 4
-	KeypadButton_Right = 1u << 6,        // keypad 6
-	KeypadButton_System = 1u << 7,       // keypad *
-	KeypadButton_Menu = 1u << 8,         // keypad /
-};
-
 // Controller sits below and in front of the eyes, tilted up so its laser meets the gaze
 // line this far ahead (about where the dashboard is).
 constexpr float kControllerDown = 0.10f;
 constexpr float kControllerForward = 0.15f;
 constexpr float kGazeConvergeDistance = 2.0f;
-
-int64_t SteadyMilliseconds()
-{
-	return std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::steady_clock::now().time_since_epoch() ).count();
-}
 } // namespace
 
 FlowKeyboardMouseControllerDevice::FlowKeyboardMouseControllerDevice()
@@ -142,9 +120,11 @@ vr::DriverPose_t FlowKeyboardMouseControllerDevice::GetPose()
 	pose.vecPosition[ 0 ] = position.v[ 0 ];
 	pose.vecPosition[ 1 ] = position.v[ 1 ];
 	pose.vecPosition[ 2 ] = position.v[ 2 ];
-	pose.poseIsValid = true;
-	pose.deviceIsConnected = true;
-	pose.result = vr::TrackingResult_Running_OK;
+	// Step aside while the tracked right hand (an Index controller) has the keypad.
+	const bool active = !g_right_hand_controller_active.load();
+	pose.poseIsValid = active;
+	pose.deviceIsConnected = active;
+	pose.result = active ? vr::TrackingResult_Running_OK : vr::TrackingResult_Uninitialized;
 	return pose;
 }
 
@@ -198,8 +178,8 @@ void FlowKeyboardMouseControllerDevice::KeypadReceiveThread()
 		{
 			continue;
 		}
-		keypad_buttons_ = packet[ 1 ];
-		keypad_updated_ms_ = SteadyMilliseconds();
+		g_keypad_buttons = packet[ 1 ];
+		g_keypad_updated_ms = FlowSteadyMilliseconds();
 		if ( packet[ 1 ] != last_logged )
 		{
 			last_logged = packet[ 1 ];
@@ -229,9 +209,8 @@ void FlowKeyboardMouseControllerDevice::Deactivate()
 
 void FlowKeyboardMouseControllerDevice::MyRunFrame()
 {
-	const bool fresh = SteadyMilliseconds() - keypad_updated_ms_.load()
-		< std::chrono::duration_cast< std::chrono::milliseconds >( kKeypadStateTimeout ).count();
-	const uint32_t buttons = fresh ? keypad_buttons_.load() : 0;
+	// While the right hand controller is active it gets the keypad; release everything here.
+	const uint32_t buttons = g_right_hand_controller_active.load() ? 0 : FlowKeypadButtons();
 	const auto pressed = [ buttons ]( uint32_t bit ) { return ( buttons & bit ) != 0; };
 
 	const bool trigger = pressed( KeypadButton_Trigger );
