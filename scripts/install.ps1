@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     1. Registers the SteamVR driver (pc\flow_steamvr_driver\build\dist\flowvr) with vrpathreg.
-    2. Sets the SteamVR settings this project relies on (overlay render quality).
+    2. Sets the SteamVR settings this project relies on (overlay render quality, 10 min idle standby).
     3. Applies the Desktop+ overlay / input settings (Desktop+ must be installed and run once).
     4. Registers the dashboard helper with SteamVR (auto-launch) - starts SteamVR briefly.
     5. Installs the Flow APK over ADB if a Flow is connected.
@@ -33,8 +33,15 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $DesktopPlusOverlay = [ordered]@{ Width = 248; OffsetUp = -22; DisplayMode = 3 }
 # Desktop+ [Input]: no gaze-click key; the keypad controller provides the trigger.
 $DesktopPlusInput = [ordered]@{ LaserPointerHMDKeyCodeLeft = 0 }
-# steamvr.vrsettings "steamvr" section. overlayRenderQuality_2: 0 Auto, 1 Low, 2 Medium, 3 High.
-$SteamVRSettings = [ordered]@{ overlayRenderQuality_2 = 3 }
+# steamvr.vrsettings, by section.
+#   steamvr.overlayRenderQuality_2: 0 Auto, 1 Low, 2 Medium, 3 High.
+#   power.turnOffScreensTimeout: seconds without head movement before SteamVR goes to standby
+#     (SteamVR default 5). scripts\dev-awake.ps1 raises it to 30 min while developing.
+#   power.pauseCompositorOnStandby: SteamVR default.
+$SteamVRSettings = [ordered]@{
+    steamvr = [ordered]@{ overlayRenderQuality_2 = 3 }
+    power   = [ordered]@{ turnOffScreensTimeout = 600.0; pauseCompositorOnStandby = $true }
+}
 $FlowPackage = "com.htc.vr.samples.wvr_flow_probe"
 # -------------------------------------------------------------------------------------------------
 
@@ -122,10 +129,12 @@ if (-not $SkipSteamVRSettings) {
         $backup = "$settingsPath.bak-veve"
         if (-not (Test-Path $backup)) { Copy-Item $settingsPath $backup; Note "backup: $backup" }
     }
-    if (-not $settings.steamvr) { $settings | Add-Member -NotePropertyName steamvr -NotePropertyValue (New-Object PSObject) }
-    foreach ($key in $SteamVRSettings.Keys) {
-        $settings.steamvr | Add-Member -NotePropertyName $key -NotePropertyValue $SteamVRSettings[$key] -Force
-        Note "steamvr.$key = $($SteamVRSettings[$key])"
+    foreach ($section in $SteamVRSettings.Keys) {
+        if (-not $settings.$section) { $settings | Add-Member -NotePropertyName $section -NotePropertyValue (New-Object PSObject) }
+        foreach ($key in $SteamVRSettings[$section].Keys) {
+            $settings.$section | Add-Member -NotePropertyName $key -NotePropertyValue $SteamVRSettings[$section][$key] -Force
+            Note "$section.$key = $($SteamVRSettings[$section][$key])"
+        }
     }
     [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Depth 32), $Utf8NoBom)
 }

@@ -7,12 +7,14 @@ PC 上的 SteamVR 畫面用 NVENC 編成 H.264，經 Wi-Fi 串流到 VIVE Flow�
 ┌──────────────────────────── PC (Windows) ─────────────────────────────┐          ┌───── VIVE Flow ──────┐
 │ SteamVR ── driver_flowvr.dll                                          │          │ Flow Probe APK       │
 │             ├ HMD：投影/IPD = Flow 實測值，姿態來自 Flow (UDP 8002)   │◄─ UDP ───┤  ├ 送頭部姿態+序號   │
+│             │   追蹤空間 "FLOW"；Flow 有送姿態 = 使用者戴著           │          │                      │
 │             ├ 虛擬顯示：Present → GPU 縮放 → [編碼執行緒] NVENC ──────┼─ TCP ──► │  ├ MediaCodec 解碼   │
 │             │   FLOWH264 v5，3200×1600 @75，每幀附「渲染用姿態序號」 │  8001    │  ├ 左右眼各取一半    │
 │             │   沒有連線時在 UDP 8002 廣播 discovery                  │          │  └ 以渲染姿態提交給  │
 │             └ 數字鍵盤控制器 (右手，雷射跟隨頭部) ◄─ UDP 127.0.0.1:8003│          │     Wave timewarp    │
 │ flow_dashboard_helper.exe（SteamVR 自動啟動）                         │          └──────────────────────┘
 │   ├ Flow 連上 / 遊戲結束時，若沒有遊戲在跑就打開 Desktop+ 分頁        │
+│   ├ 遊戲開始時關閉控制台；坐姿原點未設定時以目前頭部位置設定          │
 │   └ 攔截數字鍵盤（SteamVR 執行中電腦收不到），轉送按鍵給驅動          │
 │ Desktop+（Steam 免費工具）：「只在 Desktop+ 分頁」顯示主螢幕          │
 └───────────────────────────────────────────────────────────────────────┘
@@ -23,12 +25,12 @@ PC 上的 SteamVR 畫面用 NVENC 編成 H.264，經 Wi-Fi 串流到 VIVE Flow�
 | 路徑 | 內容 |
 |---|---|
 | `pc/flow_steamvr_driver/` | SteamVR 驅動（C++/CMake）。設定在 `flowvr/resources/settings/default.vrsettings` |
-| `pc/flow_dashboard_helper/` | SteamVR 背景程式：自動開 Desktop+ 分頁、數字鍵盤擷取 |
+| `pc/flow_dashboard_helper/` | SteamVR 背景程式：自動開/關控制台、數字鍵盤擷取 |
 | `Wave_Native_SDK/samples/wvr_flow_probe/` | Flow 端 APK（Wave Native SDK，Java + C++/GLES） |
 | `Wave_Native_SDK/repo/` | Wave SDK 本機 Maven 套件（**不在版控內**，需自行下載，見下方「Wave SDK」） |
 | `pc/openvr/` | OpenVR SDK v2.15.6（git submodule） |
 | `pc/third_party/nv-codec-headers/` | NVENC API 標頭 |
-| `scripts/` | `build.ps1`、`install.ps1`、`uninstall.ps1` |
+| `scripts/` | `build.ps1`、`install.ps1`、`uninstall.ps1`、`dev-awake.ps1`（開發模式） |
 | `pc/flow_desktop_streamer/`、`.../wvr_flow_probe/tools/` | 備用模式：不經 SteamVR 直接串流桌面（Python + ffmpeg） |
 | `flow_probe/` | 從 Flow 擷取的硬體資訊（解碼器能力、顯示器等），做為參考；含裝置序號的 `getprop.txt` 不公開 |
 
@@ -72,7 +74,8 @@ git submodule update --init          # 取得 pc/openvr (v2.15.6)
 1. Flow 與 PC 在同一個 Wi-Fi（不需要 USB / ADB）。
 2. 從 Steam 啟動 SteamVR（會一併開啟 SteamVR Home、Desktop+、背景程式）。
 3. 在 Flow 上開啟 **Flow Probe**。連上後約 1.5 秒，Desktop+ 分頁自動打開，看到 PC 主螢幕。
-4. 開 VR 遊戲時桌面自動隱藏；遊戲結束（回到 Home）後自動再打開。拿下頭盔再戴上也會重新打開。
+4. 開 VR 遊戲時控制台（連同桌面）自動關閉；遊戲結束（回到 Home）後自動再打開。拿下頭盔再戴上也會重新打開。
+5. 雷射點到 Desktop+ 面板外會關掉控制台、桌面跟著消失：按 `*` 叫回來（SteamVR 會打開上次用的 Desktop+ 分頁）。
 
 ### 數字鍵盤（只在 SteamVR 執行中有效，NumLock 開關不影響）
 
@@ -83,7 +86,7 @@ git submodule update --init          # 取得 pc/openvr (v2.15.6)
 | Enter | 觸控板按下 | — |
 | + / 8，− / 2 | 觸控板上 / 下 | 捲動 |
 | 4 / 6 | 觸控板左 / 右 | 方向 |
-| * | System | 開關 SteamVR 控制台 |
+| * | System | 開關 SteamVR 控制台（叫回 Desktop+） |
 | / | Menu | 遊戲選單 |
 
 用頭部對準（雷射跟著頭），按鍵點擊。SteamVR 執行期間小鍵盤不會打字到電腦；NumLock 與小鍵盤的 ←（Backspace）照常。
@@ -95,15 +98,32 @@ git submodule update --init          # 取得 pc/openvr (v2.15.6)
 | 解析度 3200×1600、位元率 100 Mbps、NVENC P4、FOV、IPD | `pc/flow_steamvr_driver/flowvr/resources/settings/default.vrsettings` | `build.ps1`（複製到 dist）後重開 SteamVR |
 | 數字鍵盤控制器開關 | 同上 `driver_flowvr.enable_keypad_controller` | 同上 |
 | Desktop+ 大小 248 cm、下移 22 cm、只在 Desktop+ 分頁 | `scripts/install.ps1` 開頭 `$DesktopPlusOverlay` | `install.ps1` |
-| SteamVR overlay 品質 High | `scripts/install.ps1` 開頭 `$SteamVRSettings` | `install.ps1` |
+| SteamVR overlay 品質 High、閒置 10 分鐘進入待機 | `scripts/install.ps1` 開頭 `$SteamVRSettings` | `install.ps1`（存在 `steamvr.vrsettings`，重開機仍有效） |
 | Flow 眼睛緩衝 1600、銳化（預設關） | `.../wvr_flow_probe/app/src/main/jni/hellovr.cpp` 開頭的 `FLOW_*` | `build.ps1` + `install.ps1` |
 
 網路：TCP 8001（影像 PC→Flow）、UDP 8002（姿態 Flow→PC、discovery PC→Flow）、UDP 127.0.0.1:8003（鍵盤→驅動）。
 Windows 防火牆若詢問，請允許 SteamVR (vrserver) 使用私人網路。
 
+## 開發模式（不戴頭盔測試）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\dev-awake.ps1        # 開啟
+powershell -ExecutionPolicy Bypass -File scripts\dev-awake.ps1 -Off   # 關閉
+```
+
+- **Flow 不休眠**：Flow 的 OEM 服務在距離感測器判斷「沒戴」約 5 秒後強制休眠，Android 的螢幕設定蓋不過它。
+  腳本等你遮住鼻樑內側的感測器（或戴上），偵測到「已戴上」後用 `dumpsys sensorservice restrict` 凍結感測器事件，
+  之後拿下也維持清醒。頭部追蹤不受影響。需要 ADB；Flow 重開機即失效。
+- **SteamVR 閒置 30 分鐘才待機**（平常 10 分鐘）：頭盔放在桌上不動會被視為閒置，待機時畫面全黑。
+  SteamVR 執行中透過背景程式的 `--idle-timeout` 修改，否則直接改 `steamvr.vrsettings`；`-Off` 改回 10 分鐘。
+
 ## 疑難排解
 
-- **只看到 SteamVR Home、沒有桌面**：拿下頭盔再戴上（Flow 重新連線會再打開）。若仍沒有，按 `*` 開控制台，切到 Desktop+ 分頁。
+- **進 VR 遊戲畫面整片灰色（#4F5A64），但電腦上的遊戲視窗正常**：SteamVR 判定追蹤失效（`trackingLossColor`）。
+  坐姿模式的遊戲（Unity 預設）需要追蹤空間的坐姿原點；驅動設定追蹤空間 "FLOW"，背景程式在 Flow 連上時補設坐姿原點。
+  若仍發生，看背景程式記錄是否有 `seated zero pose`，或在 SteamVR 選單「重置坐姿位置」。
+- **遊戲畫面變暗、解析度變低、不會動**：控制台還開著（舊版 SteamVR Unity 外掛在沒有輸入焦點時會暫停）。按 `*` 關閉。
+- **只看到 SteamVR Home、沒有桌面**：按 `*` 打開控制台；或拿下頭盔再戴上（Flow 重新連線會再打開）。
 - **畫面中央「選擇 USB 模式」**：Flow 接著 USB 時的系統提示，選「不執行任何動作」，或拔掉 USB。
 - **「無法追蹤頭戴式裝置」**：環境太暗或鏡頭被擋住。
 - **Desktop+ 設定被改回去**：Desktop+ 關閉時會寫回自己的設定；改設定前先關閉 SteamVR，或直接重跑 `install.ps1`。

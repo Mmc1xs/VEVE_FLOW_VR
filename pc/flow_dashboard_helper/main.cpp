@@ -14,6 +14,7 @@
 //   flow_dashboard_helper.exe            run (SteamVR auto-launches it after --install)
 //   flow_dashboard_helper.exe --install  register with SteamVR and enable auto-launch
 //   flow_dashboard_helper.exe --uninstall
+//   flow_dashboard_helper.exe --idle-timeout <seconds>   set SteamVR's idle-to-standby timeout (SteamVR running)
 
 #include <openvr.h>
 
@@ -23,6 +24,7 @@
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <atomic>
@@ -307,6 +309,23 @@ int main( int argc, char **argv )
 	if ( arg == "--install" || arg == "--uninstall" )
 	{
 		const int result = Install( arg == "--install" );
+		vr::VR_Shutdown();
+		return result;
+	}
+
+	// Changes SteamVR's idle-to-standby timeout while SteamVR runs (it rewrites
+	// steamvr.vrsettings on exit, so editing the file then would be lost). Used by
+	// scripts\dev-awake.ps1.
+	if ( arg == "--idle-timeout" )
+	{
+		const float seconds = argc > 2 ? static_cast< float >( std::atof( argv[ 2 ] ) ) : 0.f;
+		vr::EVRSettingsError error = vr::VRSettingsError_None;
+		if ( seconds > 0.f )
+		{
+			vr::VRSettings()->SetFloat( vr::k_pch_Power_Section, vr::k_pch_Power_TurnOffScreensTimeout_Float, seconds, &error );
+		}
+		const int result = seconds > 0.f && error == vr::VRSettingsError_None ? 0 : 1;
+		Log( result == 0 ? "power.turnOffScreensTimeout = %.0f s" : "failed to set power.turnOffScreensTimeout (%.0f s)", seconds );
 		vr::VR_Shutdown();
 		return result;
 	}
