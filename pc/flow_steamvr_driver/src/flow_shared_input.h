@@ -25,6 +25,10 @@ enum KeypadButton : uint32_t
 	KeypadButton_Menu = 1u << 8,         // keypad /
 };
 
+// Keypad buttons that act on what the laser points at (all but System and Menu).
+constexpr uint32_t kFlowAimingButtons = KeypadButton_Trigger | KeypadButton_Grip | KeypadButton_TrackpadClick |
+	KeypadButton_Up | KeypadButton_Down | KeypadButton_Left | KeypadButton_Right;
+
 inline std::atomic< uint32_t > g_keypad_buttons{ 0 };
 inline std::atomic< int64_t > g_keypad_updated_ms{ 0 }; // steady clock
 
@@ -38,6 +42,21 @@ inline int64_t FlowSteadyMilliseconds()
 inline uint32_t FlowKeypadButtons()
 {
 	return FlowSteadyMilliseconds() - g_keypad_updated_ms.load() < 500 ? g_keypad_buttons.load() : 0;
+}
+
+// Status flags the helper sends along with the buttons (keep in sync with flow_dashboard_helper).
+enum KeypadStatus : uint32_t
+{
+	KeypadStatus_DashboardVisible = 1u << 0,
+};
+
+inline std::atomic< uint32_t > g_keypad_status{ 0 };
+
+// The SteamVR dashboard is open (as last reported by the helper; false if it went silent).
+inline bool FlowDashboardVisible()
+{
+	return FlowSteadyMilliseconds() - g_keypad_updated_ms.load() < 500 &&
+	       ( g_keypad_status.load() & KeypadStatus_DashboardVisible ) != 0;
 }
 
 // True while the right hand controller is connected: the keypad's buttons then go to it and

@@ -9,6 +9,8 @@
 //   5 = trigger   0/Ins = grip   Enter = trackpad click   + / 8 = up   - / 2 = down
 //   4 = left      6 = right      * = system (dashboard)   / = menu     other keypad keys = ignored
 // NumLock and the keypad's Backspace (same key code as the main keyboard's) still pass through.
+// While the dashboard is open the keypad laser only shows while a key is held (see
+// flow_pointer_gate.h in the driver), so a small head-locked reticle marks where it will land.
 //
 // Usage:
 //   flow_dashboard_helper.exe            run (SteamVR auto-launches it after --install)
@@ -22,10 +24,12 @@
 #include <windows.h>
 
 #include <chrono>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 #include <ctime>
 #include <atomic>
 #include <string>
@@ -45,6 +49,14 @@ namespace
 	// Set by driver_flowvr on the HMD while the Flow receives the stream
 	// (kProp_FlowStreamConnected_Bool in pc/flow_steamvr_driver/src/flow_pose_sync.h).
 	constexpr auto kPropFlowStreamConnected = static_cast< vr::ETrackedDeviceProperty >( 10001 );
+
+	// Reticle: on the gaze line where the keypad laser crosses it (kGazeConvergeDistance in
+	// flow_steamvr_driver/src/keyboard_mouse_controller.cpp), i.e. where a keypad click lands.
+	constexpr const char *kReticleKey = "flowvr.keypad_reticle";
+	constexpr float kReticleDistance = 2.0f;
+	constexpr float kReticleWidth = 0.03f; // metres, about 0.9 degrees at 2 m
+	constexpr int kReticleSize = 64;
+	constexpr const char *kRightHandSerial = "FLOW-HAND-RIGHT";
 
 	std::string ExeDirectory()
 	{
@@ -100,7 +112,7 @@ namespace
 	constexpr uint16_t kKeypadPort = 8003;
 	constexpr uint32_t kKeypadMagic = 0x31504B46; // "FKP1"
 
-	// Button bits; keep in sync with KeypadButton in flow_steamvr_driver/src/keyboard_mouse_controller.cpp.
+	// Button bits; keep in sync with KeypadButton in flow_steamvr_driver/src/flow_shared_input.h.
 	enum KeypadButton : uint32_t
 	{
 		KeypadButton_Trigger = 1u << 0,
@@ -114,8 +126,14 @@ namespace
 		KeypadButton_Menu = 1u << 8,
 	};
 
+	// Status flags sent after the buttons; keep in sync with KeypadStatus in flow_shared_input.h.
+	// The driver keeps its controllers' lasers off the overlays while the dashboard is open and
+	// nothing is pressed, so Desktop+ does not drag the Windows cursor along with the head.
+	constexpr uint32_t kKeypadStatusDashboardVisible = 1u << 0;
+
 	std::atomic< DWORD > g_hook_thread_id{ 0 };
 	std::atomic< uint32_t > g_keypad_buttons{ 0 };
+	std::atomic< uint32_t > g_keypad_status{ 0 };
 	SOCKET g_keypad_socket = INVALID_SOCKET;
 
 	// Sends the current mask; also called periodically as a heartbeat (the driver releases all
@@ -126,7 +144,7 @@ namespace
 		{
 			return;
 		}
-		const uint32_t packet[ 2 ] = { kKeypadMagic, g_keypad_buttons.load() };
+		const uint32_t packet[ 3 ] = { kKeypadMagic, g_keypad_buttons.load(), g_keypad_status.load() };
 		sockaddr_in target = {};
 		target.sin_family = AF_INET;
 		target.sin_port = htons( kKeypadPort );
@@ -262,6 +280,71 @@ namespace
 		Log( "seated zero pose was not set: reset it to the current head pose" );
 	}
 
+	// White ring with a dark outline and a centre dot, readable on light and dark desktops.
+	std::vector< uint8_t > ReticlePixels()
+	{
+		std::vector< uint8_t > pixels( kReticleSize * kReticleSize * 4, 0 );
+		const float centre = ( kReticleSize - 1 ) * 0.5f;
+		for ( int y = 0; y < kReticleSize; ++y )
+		{
+			for ( int x = 0; x < kReticleSize; ++x )
+			{
+				const float r = std::hypot( x - centre, y - centre );
+				uint8_t value = 0, alpha = 0;
+				if ( ( r >= 20.0f && r <= 25.0f ) || r <= 3.0f )
+				{
+					value = 255, alpha = 255;
+				}
+				else if ( ( r >= 17.0f && r <= 28.0f ) || r <= 5.5f )
+				{
+					value = 0, alpha = 200;
+				}
+				uint8_t *p = &pixels[ ( y * kReticleSize + x ) * 4 ];
+				p[ 0 ] = p[ 1 ] = p[ 2 ] = value;
+				p[ 3 ] = alpha;
+			}
+		}
+		return pixels;
+	}
+
+	vr::VROverlayHandle_t CreateReticle()
+	{
+		vr::VROverlayHandle_t handle = vr::k_ulOverlayHandleInvalid;
+		if ( vr::VROverlay()->CreateOverlay( kReticleKey, "Flow keypad reticle", &handle ) != vr::VROverlayError_None )
+		{
+			Log( "reticle overlay could not be created" );
+			return vr::k_ulOverlayHandleInvalid;
+		}
+		std::vector< uint8_t > pixels = ReticlePixels();
+		vr::VROverlay()->SetOverlayRaw( handle, pixels.data(), kReticleSize, kReticleSize, 4 );
+		vr::VROverlay()->SetOverlayWidthInMeters( handle, kReticleWidth );
+		vr::VROverlay()->SetOverlaySortOrder( handle, 0xFFFFFFFF );
+		vr::HmdMatrix34_t transform = {};
+		transform.m[ 0 ][ 0 ] = transform.m[ 1 ][ 1 ] = transform.m[ 2 ][ 2 ] = 1.0f;
+		transform.m[ 2 ][ 3 ] = -kReticleDistance;
+		vr::VROverlay()->SetOverlayTransformTrackedDeviceRelative( handle, vr::k_unTrackedDeviceIndex_Hmd, &transform );
+		return handle;
+	}
+
+	// The right hand controller takes the keypad (and its own laser) while it is connected.
+	bool RightHandConnected()
+	{
+		for ( vr::TrackedDeviceIndex_t i = 0; i < vr::k_unMaxTrackedDeviceCount; ++i )
+		{
+			if ( vr::VRSystem()->GetTrackedDeviceClass( i ) != vr::TrackedDeviceClass_Controller )
+			{
+				continue;
+			}
+			char serial[ 64 ] = {};
+			vr::VRSystem()->GetStringTrackedDeviceProperty( i, vr::Prop_SerialNumber_String, serial, sizeof( serial ) );
+			if ( std::strcmp( serial, kRightHandSerial ) == 0 )
+			{
+				return vr::VRSystem()->IsTrackedDeviceConnected( i );
+			}
+		}
+		return false;
+	}
+
 	// Returns true once the Desktop+ tab has been shown (or there is no reason to show it anymore).
 	bool TryOpenDesktopTab()
 	{
@@ -337,6 +420,8 @@ int main( int argc, char **argv )
 		g_keypad_socket = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
 	}
 	std::thread hook_thread( KeyboardHookThread );
+	const vr::VROverlayHandle_t reticle = CreateReticle();
+	bool reticle_shown = false;
 	using Clock = std::chrono::steady_clock;
 	bool open_pending = true; // SteamVR just started: open once the Flow is connected
 	bool flow_connected = false;
@@ -418,6 +503,21 @@ int main( int argc, char **argv )
 				Log( "Desktop+ dashboard tab not found within %lld s; giving up until the Flow reconnects or a game exits",
 				     static_cast< long long >( kOpenRetryWindow.count() ) );
 				open_pending = false;
+			}
+		}
+		const bool dashboard_visible = vr::VROverlay()->IsDashboardVisible();
+		g_keypad_status = dashboard_visible ? kKeypadStatusDashboardVisible : 0u;
+		const bool show_reticle = dashboard_visible && !RightHandConnected();
+		if ( reticle != vr::k_ulOverlayHandleInvalid && show_reticle != reticle_shown )
+		{
+			reticle_shown = show_reticle;
+			if ( show_reticle )
+			{
+				vr::VROverlay()->ShowOverlay( reticle );
+			}
+			else
+			{
+				vr::VROverlay()->HideOverlay( reticle );
 			}
 		}
 		SendKeypadState();

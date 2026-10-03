@@ -56,6 +56,7 @@ add_library(${DRIVER_NAME} SHARED
   src/virtual_display_device.h
   src/virtual_display_device.cpp
   src/flow_pose_sync.h
+  src/flow_pointer_gate.h
   src/flow_audio_streamer.h
   src/flow_audio_streamer.cpp
 )

@@ -6,6 +6,7 @@
 #include <string>
 #include <thread>
 
+#include "flow_pointer_gate.h"
 #include "openvr_driver.h"
 
 enum FlowKeyboardMouseComponent
@@ -55,4 +56,5 @@ private:
 	std::string serial_number_{ "FLOW-KBM-RIGHT-001" };
 
 	std::array< vr::VRInputComponentHandle_t, FlowKeyboardMouseComponent_MAX > input_handles_{};
+	FlowPointerGate pointer_gate_;
 };

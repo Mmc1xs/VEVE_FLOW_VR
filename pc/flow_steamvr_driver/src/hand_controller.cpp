@@ -14,6 +14,9 @@ constexpr int64_t kSampleTimeoutMs = 150;
 // The controller stays connected this long after its hand was last tracked.
 constexpr int64_t kDisconnectAfterMs = 3000;
 constexpr float kPi = 3.14159265f;
+// Pinch / fist strength that brings the laser back while the dashboard is open.
+constexpr float kAimPinch = 0.5f;
+constexpr float kAimGrip = 0.5f;
 
 struct Vec3
 {
@@ -172,6 +175,10 @@ vr::DriverPose_t FlowHandControllerDevice::GetPose()
 	pose.vecPosition[ 0 ] = palm.x;
 	pose.vecPosition[ 1 ] = palm.y + kFlowStandingHeightOffset;
 	pose.vecPosition[ 2 ] = palm.z;
+	if ( !pointer_gate_.Aiming() )
+	{
+		FlowPointerGate::Rest( pose );
+	}
 	pose.poseIsValid = true;
 	pose.result = vr::TrackingResult_Running_OK;
 	return pose;
@@ -246,8 +253,8 @@ void FlowHandControllerDevice::MyRunFrame()
 	float grip_force = Remap( fist, 0.75f, 1.0f );
 
 	// The right hand takes over the keypad while it is connected.
-	const uint32_t keys = side_ == FlowHand_Right && connected_.load() ? FlowKeypadButtons() : 0;
-	const auto pressed = [ keys ]( uint32_t bit ) { return ( keys & bit ) != 0; };
+	uint32_t keys = side_ == FlowHand_Right && connected_.load() ? FlowKeypadButtons() : 0;
+	const auto pressed = [ &keys ]( uint32_t bit ) { return ( keys & bit ) != 0; };
 	if ( pressed( KeypadButton_Trigger ) )
 	{
 		pinch = 1.0f;
@@ -256,6 +263,16 @@ void FlowHandControllerDevice::MyRunFrame()
 	{
 		grip_value = 1.0f;
 		grip_force = 1.0f;
+	}
+	// While the dashboard is open the laser only reaches the overlays during a pinch, a fist or
+	// a keypad press (see FlowPointerGate); the first moments of each are held back.
+	pointer_gate_.Update( pinch > kAimPinch || grip_value > kAimGrip || ( keys & kFlowAimingButtons ) != 0 );
+	if ( !pointer_gate_.ClickAllowed() )
+	{
+		pinch = 0.0f;
+		grip_value = 0.0f;
+		grip_force = 0.0f;
+		keys &= ~kFlowAimingButtons;
 	}
 	// Click with hysteresis so a pinch held near the threshold does not chatter.
 	trigger_clicked_ = trigger_clicked_ ? pinch > 0.6f : pinch > 0.85f;

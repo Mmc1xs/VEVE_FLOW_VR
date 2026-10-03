@@ -6,6 +6,7 @@
 #include <string>
 #include <thread>
 
+#include "flow_pointer_gate.h"
 #include "flow_shared_input.h"
 #include "openvr_driver.h"
 
@@ -72,4 +73,5 @@ private:
 	float pitch_offset_rad_ = 0.0f;
 	std::thread pose_update_thread_;
 	std::array< vr::VRInputComponentHandle_t, FlowHandComponent_MAX > input_handles_{};
+	FlowPointerGate pointer_gate_;
 };

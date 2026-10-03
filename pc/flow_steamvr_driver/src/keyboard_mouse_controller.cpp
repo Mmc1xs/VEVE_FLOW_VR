@@ -2,6 +2,7 @@
 #include "keyboard_mouse_controller.h"
 
 #include "driverlog.h"
+#include "flow_pointer_gate.h"
 #include "flow_pose_sync.h"
 #include "flow_shared_input.h"
 #include "vrmath.h"
@@ -120,6 +121,10 @@ vr::DriverPose_t FlowKeyboardMouseControllerDevice::GetPose()
 	pose.vecPosition[ 0 ] = position.v[ 0 ];
 	pose.vecPosition[ 1 ] = position.v[ 1 ];
 	pose.vecPosition[ 2 ] = position.v[ 2 ];
+	if ( !pointer_gate_.Aiming() )
+	{
+		FlowPointerGate::Rest( pose );
+	}
 	// Step aside while the tracked right hand (an Index controller) has the keypad.
 	const bool active = !g_right_hand_controller_active.load();
 	pose.poseIsValid = active;
@@ -172,13 +177,15 @@ void FlowKeyboardMouseControllerDevice::KeypadReceiveThread()
 	uint32_t last_logged = 0;
 	while ( is_active_ )
 	{
-		uint32_t packet[ 2 ] = {};
+		// magic, buttons[, status flags]
+		uint32_t packet[ 3 ] = {};
 		const int received = recv( sock, reinterpret_cast< char * >( packet ), sizeof( packet ), 0 );
-		if ( received != sizeof( packet ) || packet[ 0 ] != kKeypadMagic )
+		if ( received < static_cast< int >( 2 * sizeof( uint32_t ) ) || packet[ 0 ] != kKeypadMagic )
 		{
 			continue;
 		}
 		g_keypad_buttons = packet[ 1 ];
+		g_keypad_status = received == sizeof( packet ) ? packet[ 2 ] : 0;
 		g_keypad_updated_ms = FlowSteadyMilliseconds();
 		if ( packet[ 1 ] != last_logged )
 		{
@@ -210,7 +217,12 @@ void FlowKeyboardMouseControllerDevice::Deactivate()
 void FlowKeyboardMouseControllerDevice::MyRunFrame()
 {
 	// While the right hand controller is active it gets the keypad; release everything here.
-	const uint32_t buttons = g_right_hand_controller_active.load() ? 0 : FlowKeypadButtons();
+	uint32_t buttons = g_right_hand_controller_active.load() ? 0 : FlowKeypadButtons();
+	pointer_gate_.Update( ( buttons & kFlowAimingButtons ) != 0 );
+	if ( !pointer_gate_.ClickAllowed() )
+	{
+		buttons &= ~kFlowAimingButtons;
+	}
 	const auto pressed = [ buttons ]( uint32_t bit ) { return ( buttons & bit ) != 0; };
 
 	const bool trigger = pressed( KeypadButton_Trigger );
