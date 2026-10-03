@@ -1,6 +1,6 @@
 // Flow dashboard helper: a SteamVR overlay app that opens the Desktop+ dashboard tab whenever
 // the Flow (re)connects or a VR game exits, as long as no game is running, so the Flow shows
-// the PC desktop without needing a controller. Games starting close the dashboard on their own.
+// the PC desktop without needing a controller, and closes the dashboard when a game takes over.
 // It waits for the Flow so the dashboard is placed in front of the head actually wearing it.
 //
 // While SteamVR runs it also captures the numeric keypad (the PC never sees those keys) and
@@ -131,6 +131,17 @@ namespace
 		target.sin_addr.s_addr = htonl( INADDR_LOOPBACK );
 		sendto( g_keypad_socket, reinterpret_cast< const char * >( packet ), sizeof( packet ), 0,
 		        reinterpret_cast< const sockaddr * >( &target ), sizeof( target ) );
+	}
+
+	// Presses and releases the keypad controller's system button, which toggles the dashboard.
+	// OpenVR has no call that closes the dashboard, so this is how we hide it.
+	void TapSystemButton()
+	{
+		g_keypad_buttons.fetch_or( KeypadButton_System );
+		SendKeypadState();
+		std::this_thread::sleep_for( std::chrono::milliseconds( 150 ) );
+		g_keypad_buttons.fetch_and( ~static_cast< uint32_t >( KeypadButton_System ) );
+		SendKeypadState();
 	}
 
 	// Classifies a key: returns true if it comes from the numeric keypad (then it is swallowed)
@@ -311,6 +322,7 @@ int main( int argc, char **argv )
 	bool open_pending = true; // SteamVR just started: open once the Flow is connected
 	bool flow_connected = false;
 	bool seated_zero_checked = false; // once per SteamVR session, after the head pose has settled
+	bool close_check_pending = false; // scene changed: close the dashboard if a game took over
 	Clock::time_point connected_at{};
 	Clock::time_point open_eligible_at{}; // when the pending open first became possible
 	Clock::time_point scene_changed_at{};
@@ -325,12 +337,16 @@ int main( int argc, char **argv )
 				vr::VRSystem()->AcknowledgeQuit_Exiting();
 				running = false;
 			}
-			else if ( event.eventType == vr::VREvent_SceneApplicationChanged && !GameRunning() )
+			else if ( event.eventType == vr::VREvent_SceneApplicationChanged )
 			{
-				Log( "VR game exited (or SteamVR Home is the scene)" );
-				open_pending = true;
-				open_eligible_at = {};
 				scene_changed_at = Clock::now();
+				close_check_pending = true;
+				if ( !GameRunning() )
+				{
+					Log( "VR game exited (or SteamVR Home is the scene)" );
+					open_pending = true;
+					open_eligible_at = {};
+				}
 			}
 		}
 
@@ -345,6 +361,19 @@ int main( int argc, char **argv )
 				connected_at = now;
 				open_pending = true; // e.g. headset put back on
 				open_eligible_at = {};
+			}
+		}
+
+		// A game does not take over from an open dashboard: the old SteamVR Unity plugin, for one,
+		// pauses and renders at half resolution while it lacks input focus. Close the dashboard
+		// (usually the Desktop+ tab we opened) once the game has settled as the scene.
+		if ( close_check_pending && running && now - scene_changed_at >= kSettleAfterSceneChange && !SceneTransitioning() )
+		{
+			close_check_pending = false;
+			if ( GameRunning() && vr::VROverlay()->IsDashboardVisible() )
+			{
+				TapSystemButton();
+				Log( "VR game started: closed the dashboard" );
 			}
 		}
 
