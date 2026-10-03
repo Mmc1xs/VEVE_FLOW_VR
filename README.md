@@ -170,8 +170,16 @@ powershell -ExecutionPolicy Bypass -File scripts\dev-awake.ps1 -Off   # 關閉
 - 小鍵盤的 ←（Backspace）與主鍵盤無法區分，所以不攔截。
 - 手部控制器還沒有手指骨架（`/input/skeleton`）：遊戲裡看到的是 Index 控制器模型，不會顯示手指動作。
 - 搖桿只能用小鍵盤，手勢沒有對應。
+- Flow 拿下約 5 秒就休眠，無法在不 root 的情況下永久改長：秒數在 OEM 服務（`vive.wave.vr.oem`）的資料庫
+  （`miac_config/psensor_duration`、`auto_shut_screen`），寫入需要系統簽章權限；建資料庫時讀的預設屬性
+  `wo_psensor_duration` / `wo_auto_shut_screen` 也被 SELinux 擋住、ADB 設不了。需要時用開發模式（重開機失效）。
 
 ## 待辦
 
 - 手指骨架：把 Flow 的 26 個關節轉成 OpenVR 手部骨架，支援 Index 手指追蹤的遊戲（Half-Life: Alyx、VRChat 等）就能顯示手指。
 - 長時間開手部追蹤時 Flow 的溫度與降頻（目前只測過幾分鐘）。
+- 多鍵同時操作（擱置，之後會做）：手勢只有 Trigger、Grip，A/B/搖桿要靠小鍵盤，左手沒有其他按鍵。方案：
+  1. 擴充手勢：用關節距離各自判斷拇指碰食指 / 中指 / 無名指（Trigger / A / B），可同時成立；搖桿仍無解。
+  2. 手部追蹤 + 實體按鍵裝置（建議）：兩手各握一支藍牙手把（如 Joy-Con）連 PC，按鍵、搖桿、扳機來自手把，
+     位置來自 Flow 手部追蹤（方向可用手把陀螺儀）。需先實測：握著手把時 Flow 是否還追蹤得到手。
+  3. 兩者並存：沒拿手把用手勢，拿著手把用手把按鍵。
