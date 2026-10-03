@@ -129,6 +129,11 @@ vr::EVRInitError MyHMDControllerDeviceDriver::Activate( uint32_t unObjectId )
 	// avoid "not fullscreen" warnings from vrmonitor
 	vr::VRProperties()->SetBoolProperty( container, vr::Prop_IsOnDesktop_Bool, false );
 
+	// User presence comes from the /proximity input (see MyRunFrame).
+	vr::VRProperties()->SetBoolProperty( container, vr::Prop_ContainsProximitySensor_Bool, true );
+
+	vr::VRProperties()->SetUint64Property( container, vr::Prop_CurrentUniverseId_Uint64, kFlowTrackingUniverseId );
+
 	// Now let's set up our inputs
 	// This tells the UI what to show the user for bindings for this controller,
 	// As well as what default bindings should be for legacy apps.
@@ -139,7 +144,7 @@ vr::EVRInitError MyHMDControllerDeviceDriver::Activate( uint32_t unObjectId )
 	// Let's set up handles for all of our components.
 	// Even though these are also defined in our input profile,
 	// We need to get handles to them to update the inputs.
-	vr::VRDriverInput()->CreateBooleanComponent( container, "/user/head/proximity/click", &my_input_handles_[ MyComponent_head_proximity_click ] );
+	vr::VRDriverInput()->CreateBooleanComponent( container, "/proximity", &my_input_handles_[ MyComponent_head_proximity_click ] );
 
 	my_pose_update_thread_ = std::thread( &MyHMDControllerDeviceDriver::MyPoseUpdateThread, this );
 	my_pose_receive_thread_ = std::thread( &MyHMDControllerDeviceDriver::MyPoseReceiveThread, this );
@@ -199,9 +204,7 @@ vr::DriverPose_t MyHMDControllerDeviceDriver::GetPose()
 		flow_pose = latest_pose_;
 	}
 
-	const auto now = std::chrono::steady_clock::now();
-	const bool flow_pose_fresh = flow_pose.received_at != std::chrono::steady_clock::time_point{}
-		&& std::chrono::duration_cast< std::chrono::milliseconds >( now - flow_pose.received_at ).count() < 500;
+	const bool flow_pose_fresh = IsFlowPoseFresh( flow_pose, std::chrono::steady_clock::now() );
 	g_flow_pose_sequence_in_use.store( flow_pose_fresh ? flow_pose.sequence : 0 );
 
 	pose.qRotation.x = flow_pose_fresh ? flow_pose.qx : 0.0;
@@ -231,6 +234,12 @@ vr::DriverPose_t MyHMDControllerDeviceDriver::GetPose()
 	pose.shouldApplyHeadModel = true;
 
 	return pose;
+}
+
+bool MyHMDControllerDeviceDriver::IsFlowPoseFresh( const FlowPose &pose, std::chrono::steady_clock::time_point now ) const
+{
+	return pose.received_at != ( std::chrono::steady_clock::time_point::min )() // parens dodge the windows.h min macro
+		&& now - pose.received_at < std::chrono::milliseconds( 500 );
 }
 
 void MyHMDControllerDeviceDriver::MyPoseReceiveThread()
@@ -390,7 +399,22 @@ void MyHMDControllerDeviceDriver::Deactivate()
 void MyHMDControllerDeviceDriver::MyRunFrame()
 {
 	frame_number_++;
-	// update our inputs here
+
+	// SteamVR derives "user present" from the proximity input. While it is false the HMD's
+	// activity level stays Idle and apps such as Unity titles fade the scene to grey, so report
+	// the headset as worn whenever the Flow is sending poses.
+	FlowPose flow_pose;
+	{
+		std::lock_guard< std::mutex > lock( pose_mutex_ );
+		flow_pose = latest_pose_;
+	}
+	const bool present = IsFlowPoseFresh( flow_pose, std::chrono::steady_clock::now() );
+	if ( present != user_present_ || frame_number_ == 1 )
+	{
+		vr::VRDriverInput()->UpdateBooleanComponent( my_input_handles_[ MyComponent_head_proximity_click ], present, 0.0 );
+		user_present_ = present;
+		DriverLog( "Flow user presence (head proximity): %s", present ? "present" : "absent" );
+	}
 }
 
 

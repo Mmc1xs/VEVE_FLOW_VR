@@ -13,3 +13,9 @@ inline std::atomic< uint32_t > g_flow_pose_sequence_in_use{ 0 };
 // Read by pc/flow_dashboard_helper (keep the id in sync there) to open the dashboard
 // only once the headset is actually showing our picture.
 constexpr int kProp_FlowStreamConnected_Bool = 10001; // vr::Prop_VendorSpecific_Reserved_Start + 1
+
+// Tracking universe of the Flow HMD and the keypad controller ("FLOW"). SteamVR keeps chaperone
+// data (seated/standing zero pose, play area) per universe; without one the seated zero pose is
+// never calibrated, seated apps (most Unity titles) get invalid poses and the compositor fades
+// them to trackingLossColor. pc/flow_dashboard_helper fills in the chaperone data if missing.
+constexpr uint64_t kFlowTrackingUniverseId = 0x464C4F57;

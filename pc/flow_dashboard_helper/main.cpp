@@ -233,6 +233,22 @@ namespace
 		return state == vr::EVRSceneApplicationState_Starting || state == vr::EVRSceneApplicationState_Quitting;
 	}
 
+	// Seated apps (Unity's default, e.g. KoikatuVR and the SteamVR Media Player) get invalid head
+	// poses until the seated zero pose of the Flow's tracking universe has been set, and SteamVR
+	// then fades them to its trackingLossColor (a flat grey). Set it from the current head pose
+	// when it is missing.
+	void EnsureSeatedZeroPose()
+	{
+		vr::TrackedDevicePose_t pose{};
+		vr::VRSystem()->GetDeviceToAbsoluteTrackingPose( vr::TrackingUniverseSeated, 0.f, &pose, 1 );
+		if ( pose.bPoseIsValid )
+		{
+			return;
+		}
+		vr::VRChaperone()->ResetZeroPose( vr::TrackingUniverseSeated );
+		Log( "seated zero pose was not set: reset it to the current head pose" );
+	}
+
 	// Returns true once the Desktop+ tab has been shown (or there is no reason to show it anymore).
 	bool TryOpenDesktopTab()
 	{
@@ -294,6 +310,7 @@ int main( int argc, char **argv )
 	using Clock = std::chrono::steady_clock;
 	bool open_pending = true; // SteamVR just started: open once the Flow is connected
 	bool flow_connected = false;
+	bool seated_zero_checked = false; // once per SteamVR session, after the head pose has settled
 	Clock::time_point connected_at{};
 	Clock::time_point open_eligible_at{}; // when the pending open first became possible
 	Clock::time_point scene_changed_at{};
@@ -329,6 +346,12 @@ int main( int argc, char **argv )
 				open_pending = true; // e.g. headset put back on
 				open_eligible_at = {};
 			}
+		}
+
+		if ( !seated_zero_checked && running && flow_connected && now - connected_at >= kSettleAfterConnect )
+		{
+			EnsureSeatedZeroPose();
+			seated_zero_checked = true;
 		}
 
 		if ( open_pending && running && flow_connected && now - connected_at >= kSettleAfterConnect &&

@@ -93,6 +93,9 @@ private:
 		std::chrono::steady_clock::time_point received_at = std::chrono::steady_clock::time_point::min();
 	};
 
+	// True while the Flow keeps sending poses (it stops when taken off and put to sleep).
+	bool IsFlowPoseFresh( const FlowPose &pose, std::chrono::steady_clock::time_point now ) const;
+
 	std::unique_ptr< MyHMDDisplayComponent > my_display_component_;
 	std::unique_ptr< FlowVirtualDisplayDevice > my_virtual_display_component_;
 
@@ -108,4 +111,5 @@ private:
 	std::thread my_pose_receive_thread_;
 	std::mutex pose_mutex_;
 	FlowPose latest_pose_;
+	bool user_present_ = false; // last value sent on /proximity
 };

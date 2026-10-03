@@ -2,6 +2,7 @@
 #include "keyboard_mouse_controller.h"
 
 #include "driverlog.h"
+#include "flow_pose_sync.h"
 #include "vrmath.h"
 
 #include <algorithm>
@@ -75,6 +76,7 @@ vr::EVRInitError FlowKeyboardMouseControllerDevice::Activate( uint32_t unObjectI
 	vr::VRProperties()->SetStringProperty( container, vr::Prop_RenderModelName_String, "vr_controller_vive_1_5" );
 	vr::VRProperties()->SetStringProperty( container, vr::Prop_ManufacturerName_String, "FlowVR" );
 	vr::VRProperties()->SetStringProperty( container, vr::Prop_TrackingSystemName_String, "flowvr" );
+	vr::VRProperties()->SetUint64Property( container, vr::Prop_CurrentUniverseId_Uint64, kFlowTrackingUniverseId );
 	vr::VRProperties()->SetStringProperty( container, vr::Prop_RegisteredDeviceType_String, "flowvr/flow_keyboard_mouse_controller" );
 	vr::VRProperties()->SetStringProperty( container, vr::Prop_ControllerType_String, "flowvr_keyboard_mouse" );
 	vr::VRProperties()->SetInt32Property( container, vr::Prop_ControllerRoleHint_Int32, vr::TrackedControllerRole_RightHand );

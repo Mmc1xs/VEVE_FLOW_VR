@@ -4,7 +4,7 @@
   "legacy_binding": "{flowvr}/input/legacy_bindings_flowvr_hmd.json",
   "input_bindingui_mode": "hmd",
   "input_source": {
-    "/user/head/proximity": {
+    "/proximity": {
       "binding_image_point": [
         250,
         60
