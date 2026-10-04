@@ -88,13 +88,18 @@ public:
 	// False while the aim has just come back: report the buttons that aim as released.
 	bool ClickAllowed() const { return click_allowed_; }
 
-	// Moves an aimed pose to the resting place: kRestDrop below, laser straight down.
-	static void Rest( vr::DriverPose_t &pose )
+	// Moves an aimed pose to the resting place: kRestDrop below (drop = true: the keypad
+	// controller sits in front of the eyes and would block the view), laser straight down.
+	// Hands stay where they are (drop = false): pointing down from the hand misses the panels.
+	static void Rest( vr::DriverPose_t &pose, bool drop = true )
 	{
 		const vr::HmdVector3_t forward = HmdVector3_Forward * pose.qRotation;
 		const double yaw = std::atan2( -forward.v[ 0 ], -forward.v[ 2 ] );
 		pose.qRotation = HmdQuaternion_FromEulerAngles( 0.0, 0.0, yaw ) * HmdQuaternion_FromEulerAngles( 0.0, -1.5707963267948966, 0.0 );
-		pose.vecPosition[ 1 ] -= kRestDrop;
+		if ( drop )
+		{
+			pose.vecPosition[ 1 ] -= kRestDrop;
+		}
 	}
 
 private:

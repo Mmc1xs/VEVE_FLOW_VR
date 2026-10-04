@@ -61,7 +61,6 @@ namespace
 	constexpr float kReticleDistance = 2.0f;
 	constexpr float kReticleWidth = 0.03f; // metres, about 0.9 degrees at 2 m
 	constexpr int kReticleSize = 64;
-	constexpr const char *kRightHandSerial = "FLOW-HAND-RIGHT";
 
 	std::string ExeDirectory()
 	{
@@ -150,6 +149,11 @@ namespace
 	// The driver keeps its controllers' lasers off the overlays while the dashboard is open and
 	// nothing is pressed, so Desktop+ does not drag the Windows cursor along with the head.
 	constexpr uint32_t kKeypadStatusDashboardVisible = 1u << 0;
+	// NumLock toggles hand tracking: while off the driver ignores the Flow's hands, so the keypad
+	// stays the head-aimed pointer (its reticle shows; no reticle = hands are detected).
+	constexpr uint32_t kKeypadStatusHandsDisabled = 1u << 1;
+	std::atomic< bool > g_hands_disabled{ false };
+	bool g_numlock_down = false; // hook thread only: ignore auto-repeat
 
 	std::atomic< DWORD > g_hook_thread_id{ 0 };
 	std::atomic< uint32_t > g_keypad_buttons{ 0 };
@@ -221,6 +225,21 @@ namespace
 		{
 			const auto *key = reinterpret_cast< const KBDLLHOOKSTRUCT * >( lparam );
 			uint32_t button = 0;
+			if ( !( key->flags & LLKHF_INJECTED ) && key->vkCode == VK_NUMLOCK )
+			{
+				const bool down = wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN;
+				if ( down && !g_numlock_down )
+				{
+					const bool disabled = !g_hands_disabled.load();
+					g_hands_disabled = disabled;
+					g_keypad_status = disabled ? ( g_keypad_status.load() | kKeypadStatusHandsDisabled )
+					                           : ( g_keypad_status.load() & ~kKeypadStatusHandsDisabled );
+					SendKeypadState();
+					Log( disabled ? "NumLock: hand tracking off (keypad pointer only)" : "NumLock: hand tracking on" );
+				}
+				g_numlock_down = down;
+				return 1; // NumLock is ours while SteamVR runs (the keypad works the same either way)
+			}
 			if ( !( key->flags & LLKHF_INJECTED ) && KeypadKey( *key, &button ) )
 			{
 				if ( button != 0 )
@@ -344,25 +363,6 @@ namespace
 		transform.m[ 2 ][ 3 ] = -kReticleDistance;
 		vr::VROverlay()->SetOverlayTransformTrackedDeviceRelative( handle, vr::k_unTrackedDeviceIndex_Hmd, &transform );
 		return handle;
-	}
-
-	// The right hand controller takes the keypad (and its own laser) while it is connected.
-	bool RightHandConnected()
-	{
-		for ( vr::TrackedDeviceIndex_t i = 0; i < vr::k_unMaxTrackedDeviceCount; ++i )
-		{
-			if ( vr::VRSystem()->GetTrackedDeviceClass( i ) != vr::TrackedDeviceClass_Controller )
-			{
-				continue;
-			}
-			char serial[ 64 ] = {};
-			vr::VRSystem()->GetStringTrackedDeviceProperty( i, vr::Prop_SerialNumber_String, serial, sizeof( serial ) );
-			if ( std::strcmp( serial, kRightHandSerial ) == 0 )
-			{
-				return vr::VRSystem()->IsTrackedDeviceConnected( i );
-			}
-		}
-		return false;
 	}
 
 	// ---- Desktop+ panel -> driver_flowvr -> Flow desktop layer ---------------------------------
@@ -686,8 +686,10 @@ int main( int argc, char **argv )
 			}
 		}
 		const bool dashboard_visible = vr::VROverlay()->IsDashboardVisible();
-		g_keypad_status = dashboard_visible ? kKeypadStatusDashboardVisible : 0u;
-		const bool show_reticle = dashboard_visible && !RightHandConnected();
+		g_keypad_status = ( dashboard_visible ? kKeypadStatusDashboardVisible : 0u ) |
+		                  ( g_hands_disabled ? kKeypadStatusHandsDisabled : 0u );
+		// Reticle = hand tracking is off (NumLock); without it the hands drive the pointers.
+		const bool show_reticle = dashboard_visible && g_hands_disabled;
 		const vr::VROverlayHandle_t panel = SendDesktopPanelState( dashboard_visible, show_reticle );
 		if ( desktop_layer )
 		{

@@ -40,7 +40,7 @@ Vec3 Joint( const FlowHandSample &sample, int joint )
 
 bool IsFresh( const FlowHandSample &sample )
 {
-	return sample.valid
+	return !FlowHandsDisabled() && sample.valid
 		&& std::chrono::steady_clock::now() - sample.received_at < std::chrono::milliseconds( kSampleTimeoutMs );
 }
 
@@ -177,7 +177,7 @@ vr::DriverPose_t FlowHandControllerDevice::GetPose()
 	pose.vecPosition[ 2 ] = palm.z;
 	if ( !pointer_gate_.Aiming() )
 	{
-		FlowPointerGate::Rest( pose );
+		FlowPointerGate::Rest( pose, false );
 	}
 	pose.poseIsValid = true;
 	pose.result = vr::TrackingResult_Running_OK;
@@ -191,7 +191,9 @@ void FlowHandControllerDevice::UpdateConnected( bool tracked )
 	{
 		last_tracked_ms_ = now;
 	}
-	const bool connected = tracked || ( connected_.load() && now - last_tracked_ms_.load() < kDisconnectAfterMs );
+	// Switched off with NumLock: disconnect at once instead of after the usual grace period.
+	const bool connected = !FlowHandsDisabled() &&
+	                       ( tracked || ( connected_.load() && now - last_tracked_ms_.load() < kDisconnectAfterMs ) );
 	if ( connected_.exchange( connected ) != connected )
 	{
 		DriverLog( "Flow hand controller %s %s", serial_number_.c_str(), connected ? "connected" : "disconnected" );

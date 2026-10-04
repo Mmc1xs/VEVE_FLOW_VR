@@ -48,6 +48,7 @@ inline uint32_t FlowKeypadButtons()
 enum KeypadStatus : uint32_t
 {
 	KeypadStatus_DashboardVisible = 1u << 0,
+	KeypadStatus_HandsDisabled = 1u << 1, // NumLock: ignore the Flow's hands (keypad pointer only)
 };
 
 inline std::atomic< uint32_t > g_keypad_status{ 0 };
@@ -57,6 +58,13 @@ inline bool FlowDashboardVisible()
 {
 	return FlowSteadyMilliseconds() - g_keypad_updated_ms.load() < 500 &&
 	       ( g_keypad_status.load() & KeypadStatus_DashboardVisible ) != 0;
+}
+
+// Hand tracking switched off with NumLock (on again if the helper goes silent).
+inline bool FlowHandsDisabled()
+{
+	return FlowSteadyMilliseconds() - g_keypad_updated_ms.load() < 500 &&
+	       ( g_keypad_status.load() & KeypadStatus_HandsDisabled ) != 0;
 }
 
 // True while the right hand controller is connected: the keypad's buttons then go to it and
