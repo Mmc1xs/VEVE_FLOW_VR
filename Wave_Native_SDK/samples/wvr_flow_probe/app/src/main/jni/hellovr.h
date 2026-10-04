@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <sys/time.h>
+#include <string>
 #include <vector>
 
 #include <jni.h>
@@ -55,6 +56,53 @@ private:
     void logProbeIfNeeded();
     void recordPoseAge();
     void updateSharpenAmount();
+    // Diagnostics: `adb shell setprop debug.flow.dumpeye <new value>` saves the next left eye
+    // buffer (what goes to timewarp) to files/flow_eye_left.ppm in the app's data directory.
+    void checkEyeDumpRequest();
+    // A/B sharpness test (`adb shell setprop debug.flow.layertest 1`): the same still image in
+    // both eyes at the same place, one eye drawn into the eye buffer (the stream's path, sampled
+    // again by timewarp), the other submitted as a Wave compositor layer (sampled once, like the
+    // Flow's own UI). Image files: files/test_1080.png and files/test_4k.png in the app data dir.
+    void updateLayerTestSettings();
+    bool loadLayerTestImage(int index);
+    Mat4 layerTestMvp(WVR_Eye eye) const;
+    void drawLayerTestImage(WVR_Eye eye);
+    bool layerTestOnEye(WVR_Eye eye) const;
+    // Wave takes all layers of a frame (both eyes) in one WVR_SubmitFrameLayers call.
+    bool submitLayerTestFrame();
+    WVR_TextureParams_t mLayerTestEyeTexture[2] = {};
+    WVR_PoseState_t mLayerTestPose = {};
+
+    // Desktop layer: a second H.264 stream of the PC desktop (TCP 8005), decoded into its own
+    // SurfaceTexture, copied 1:1 into a Wave texture queue and shown as a compositor layer, so
+    // the compositor samples the desktop only once (like the Flow's own UI) instead of going
+    // through the SteamVR picture, the eye buffer and timewarp.
+    bool initDesktopBridge();
+    void shutdownDesktopBridge();
+    void updateDesktopFrame();
+    void updateDesktopSettings();
+    bool layersActive() const;
+    bool submitDesktopFrame();
+    GLuint mDesktopOesTexture = 0;
+    GLuint mDesktopCopyProgram = 0;
+    GLint mDesktopCopyMvpUniform = -1;
+    GLint mDesktopCopyTexMatrixUniform = -1;
+    GLuint mDesktopFramebuffer = 0;
+    float mDesktopTexMatrix[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    void *mDesktopQueue = nullptr;
+    int mDesktopQueueSize[2] = {0, 0};
+    int32_t mDesktopIndex = -1;    // queue texture holding the newest desktop frame
+    int64_t mDesktopLastTimestampNs = -1;
+    uint32_t mDesktopNewFrames = 0;
+    bool mDesktopEnabled = true;   // debug.flow.desktop
+    float mDesktopWidth = 3.2f;    // debug.flow.desktop.width, metres at FLOW_SCREEN_DISTANCE
+    // Keypad reticle: where the head-aimed keypad laser meets the panel, drawn into the layer
+    // texture (the layer covers SteamVR's own reticle). Needs a fresh copy whenever it moves.
+    bool desktopReticleUv(float *u, float *v) const;
+    GLuint mReticleProgram = 0;
+    GLint mReticleMvpUniform = -1;
+    bool mDesktopReticleDrawn = false;
+    void dumpEyeBuffer();
     void updateHandTrackingEnabled();
     void updateHands();
     void logHandsIfNeeded(float seconds);
@@ -80,6 +128,27 @@ private:
     GLint mDecoderTexelUniform = -1;
     GLint mDecoderSharpenUniform = -1;
     float mSharpenAmount = -1.0f; // set by updateSharpenAmount()
+    std::string mEyeDumpSeen; // last debug.flow.dumpeye value acted on
+    bool mEyeDumpChecked = false;
+    bool mEyeDumpPending = false;
+    bool mLayerTest = false;
+    int mLayerTestEye = 1;   // eye shown as a compositor layer: 0 = left, 1 = right
+    int mLayerTestShape = 0; // 0 = quad, 1 = cylinder
+    int mLayerTestImage = 0; // 0 = test_1080.png, 1 = test_4k.png
+    float mLayerTestWidth = 3.2f; // metres, at FLOW_SCREEN_DISTANCE
+    int mLayerTestSource = 0;      // debug.flow.layertest.src: 0 = Wave texture queue, 1 = plain GL texture
+    bool mLayerTestHeadLocked = false; // debug.flow.layertest.headlocked: 2 m straight ahead of the head
+    GLuint mImageProgram = 0;
+    GLint mImageMvpUniform = -1;
+    GLuint mLayerTestTextures[2] = {0, 0};
+    // The compositor runs outside this process, so a layer must use a Wave texture queue; each
+    // queue texture holds a 1:1 copy of the image (bottom row first, as the layer expects).
+    void *mLayerTestQueues[2] = {nullptr, nullptr};
+    int mLayerTestSize[2][2] = {};
+    bool mLayerTestLoadFailed[2] = {false, false};
+    uint32_t mMaxFrameLayers = 0;
+    bool mLayerSubmitFailed = false;
+    float mFrameSharpness = -1.0f; // debug.flow.fse at startup; < 0 = feature not initialized
     float mDecoderTexMatrix[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
     bool mDecoderReady = false;
 
@@ -146,3 +215,7 @@ void FlowProbe_ClearDecoderSurfaceTexture(JNIEnv *env);
 void FlowProbe_SetDecoderStreamInfo(int width, int height, int layout);
 void FlowProbe_SetFramePoseSequence(int64_t ptsUs, uint32_t poseSequence);
 void FlowProbe_SetPoseTargetHost(const char *host);
+void FlowProbe_SetDesktopSurfaceTexture(JNIEnv *env, jobject surfaceTexture);
+void FlowProbe_ClearDesktopSurfaceTexture(JNIEnv *env);
+void FlowProbe_SetDesktopStreamInfo(int width, int height);
+void FlowProbe_SetDesktopPanel(int flags, const float transform[12], float width);

@@ -47,6 +47,42 @@ public:
 		click_allowed_ = aiming_ && now - aim_since_ms_ >= kAimLeadMs;
 	}
 
+	// The aiming buttons to report this frame (call after Update). Presses are held back while
+	// the aim comes in; a tap released during that time is replayed for kTapReplayMs afterwards,
+	// so a quick tap still clicks where the reticle was.
+	uint32_t FilterButtons( uint32_t pressed )
+	{
+		if ( !FlowDashboardVisible() )
+		{
+			latched_ = 0;
+			return pressed;
+		}
+		if ( !click_allowed_ )
+		{
+			latched_ |= pressed;
+			return 0;
+		}
+		if ( latched_ == 0 )
+		{
+			return pressed;
+		}
+		const int64_t now = FlowSteadyMilliseconds();
+		if ( replay_until_ms_ == 0 )
+		{
+			replay_until_ms_ = now + kTapReplayMs;
+		}
+		const uint32_t buttons = pressed | latched_;
+		if ( now >= replay_until_ms_ )
+		{
+			latched_ = 0;
+			replay_until_ms_ = 0;
+		}
+		return buttons;
+	}
+
+	// A tap is still pending replay: keep aiming until it has been delivered.
+	bool TapPending() const { return latched_ != 0; }
+
 	// Read by the pose thread.
 	bool Aiming() const { return aiming_.load(); }
 	// False while the aim has just come back: report the buttons that aim as released.
@@ -65,10 +101,13 @@ private:
 	// Measured: Desktop+ moves the cursor 120-140 ms after the laser lands on its panel.
 	static constexpr int64_t kAimLeadMs = 200;
 	static constexpr int64_t kAimHoldMs = 150;
+	static constexpr int64_t kTapReplayMs = 80;
 	static constexpr double kRestDrop = 1.5; // metres
 
 	std::atomic< bool > aiming_{ true };
 	bool click_allowed_ = true;
 	int64_t aim_since_ms_ = 0;
 	int64_t last_engaged_ms_ = 0;
+	uint32_t latched_ = 0;
+	int64_t replay_until_ms_ = 0;
 };

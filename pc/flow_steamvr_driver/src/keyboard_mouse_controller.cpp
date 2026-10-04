@@ -32,6 +32,7 @@ namespace
 {
 constexpr uint16_t kKeypadPort = 8003;
 constexpr uint32_t kKeypadMagic = 0x31504B46; // "FKP1"
+constexpr uint32_t kDesktopPanelMagic = 0x31504446; // "FDP1": Desktop+ panel, see flow_shared_input.h
 // Controller sits below and in front of the eyes, tilted up so its laser meets the gaze
 // line this far ahead (about where the dashboard is).
 constexpr float kControllerDown = 0.10f;
@@ -177,15 +178,33 @@ void FlowKeyboardMouseControllerDevice::KeypadReceiveThread()
 	uint32_t last_logged = 0;
 	while ( is_active_ )
 	{
-		// magic, buttons[, status flags]
-		uint32_t packet[ 3 ] = {};
+		// Keypad: magic, buttons[, status flags]. Desktop+ panel: magic, flags, 12 floats, width
+		// [, 4 texture bounds].
+		uint32_t packet[ 20 ] = {};
 		const int received = recv( sock, reinterpret_cast< char * >( packet ), sizeof( packet ), 0 );
-		if ( received < static_cast< int >( 2 * sizeof( uint32_t ) ) || packet[ 0 ] != kKeypadMagic )
+		if ( ( received == static_cast< int >( 15 * sizeof( uint32_t ) ) || received == static_cast< int >( 19 * sizeof( uint32_t ) ) ) &&
+		     packet[ 0 ] == kDesktopPanelMagic )
+		{
+			FlowDesktopPanel panel;
+			panel.visible = ( packet[ 1 ] & 1u ) != 0;
+			panel.flags = packet[ 1 ];
+			std::memcpy( panel.transform, &packet[ 2 ], sizeof( panel.transform ) );
+			std::memcpy( &panel.width, &packet[ 14 ], sizeof( panel.width ) );
+			if ( received == static_cast< int >( 19 * sizeof( uint32_t ) ) )
+			{
+				std::memcpy( panel.bounds, &packet[ 15 ], sizeof( panel.bounds ) );
+			}
+			panel.updated_ms = FlowSteadyMilliseconds();
+			g_desktop_panel.Store( panel );
+			continue;
+		}
+		if ( received < static_cast< int >( 2 * sizeof( uint32_t ) ) || received > static_cast< int >( 3 * sizeof( uint32_t ) ) ||
+		     packet[ 0 ] != kKeypadMagic )
 		{
 			continue;
 		}
 		g_keypad_buttons = packet[ 1 ];
-		g_keypad_status = received == sizeof( packet ) ? packet[ 2 ] : 0;
+		g_keypad_status = received == static_cast< int >( 3 * sizeof( uint32_t ) ) ? packet[ 2 ] : 0;
 		g_keypad_updated_ms = FlowSteadyMilliseconds();
 		if ( packet[ 1 ] != last_logged )
 		{
@@ -218,11 +237,8 @@ void FlowKeyboardMouseControllerDevice::MyRunFrame()
 {
 	// While the right hand controller is active it gets the keypad; release everything here.
 	uint32_t buttons = g_right_hand_controller_active.load() ? 0 : FlowKeypadButtons();
-	pointer_gate_.Update( ( buttons & kFlowAimingButtons ) != 0 );
-	if ( !pointer_gate_.ClickAllowed() )
-	{
-		buttons &= ~kFlowAimingButtons;
-	}
+	pointer_gate_.Update( ( buttons & kFlowAimingButtons ) != 0 || pointer_gate_.TapPending() );
+	buttons = ( buttons & ~kFlowAimingButtons ) | pointer_gate_.FilterButtons( buttons & kFlowAimingButtons );
 	const auto pressed = [ buttons ]( uint32_t bit ) { return ( buttons & bit ) != 0; };
 
 	const bool trigger = pressed( KeypadButton_Trigger );

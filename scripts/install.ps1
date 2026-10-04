@@ -30,7 +30,7 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 # ---- Settings outside this repository ---------------------------------------------------------
 # Desktop+ [Overlay0] (the desktop shown in the Flow). Width/OffsetUp are in cm.
 # DisplayMode 3 = "Only in Desktop+ Tab" (the dashboard helper opens that tab).
-$DesktopPlusOverlay = [ordered]@{ Width = 248; OffsetUp = -22; DisplayMode = 3 }
+$DesktopPlusOverlay = [ordered]@{ Width = 248; OffsetUp = -22; DisplayMode = 3; Curvature = 0 }
 # Desktop+ [Input]: no gaze-click key; the keypad controller provides the trigger.
 $DesktopPlusInput = [ordered]@{ LaserPointerHMDKeyCodeLeft = 0 }
 # steamvr.vrsettings, by section.

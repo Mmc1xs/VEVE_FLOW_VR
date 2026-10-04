@@ -20,6 +20,8 @@
 
 #include <openvr.h>
 
+#include "desktop_layer_streamer.h"
+
 #include <winsock2.h>
 #include <windows.h>
 
@@ -34,6 +36,8 @@
 #include <atomic>
 #include <string>
 #include <thread>
+#include <algorithm>
+#include <memory>
 
 namespace
 {
@@ -49,6 +53,7 @@ namespace
 	// Set by driver_flowvr on the HMD while the Flow receives the stream
 	// (kProp_FlowStreamConnected_Bool in pc/flow_steamvr_driver/src/flow_pose_sync.h).
 	constexpr auto kPropFlowStreamConnected = static_cast< vr::ETrackedDeviceProperty >( 10001 );
+
 
 	// Reticle: on the gaze line where the keypad laser crosses it (kGazeConvergeDistance in
 	// flow_steamvr_driver/src/keyboard_mouse_controller.cpp), i.e. where a keypad click lands.
@@ -89,6 +94,21 @@ namespace
 		std::fflush( file );
 	}
 
+}
+
+// The shared NVENC encoder and the desktop layer streamer log through this.
+void DriverLog( const char *format, ... )
+{
+	char line[ 512 ];
+	va_list args;
+	va_start( args, format );
+	std::vsnprintf( line, sizeof( line ), format, args );
+	va_end( args );
+	Log( "%s", line );
+}
+
+namespace
+{
 	int Install( bool install )
 	{
 		const std::string manifest = ExeDirectory() + "\\flow_dashboard_helper.vrmanifest";
@@ -345,6 +365,152 @@ namespace
 		return false;
 	}
 
+	// ---- Desktop+ panel -> driver_flowvr -> Flow desktop layer ---------------------------------
+	// The Flow shows the PC desktop as a compositor layer (sharper than the streamed SteamVR
+	// picture) exactly where Desktop+ draws its panel, so Desktop+ keeps handling the laser,
+	// clicks and its tools. Sent every loop: magic, flags (bit 0 = show, bit 1 = the head-aimed
+	// keypad pointer is active: draw its reticle on the layer, which hides ours), the panel's 3x4
+	// transform in the driver's raw tracking space (row-major, includes Desktop+'s scale), width,
+	// and the overlay's texture bounds (which part of Desktop+'s all-monitors texture it shows).
+	constexpr uint32_t kDesktopPanelMagic = 0x31504446; // "FDP1"
+	// Desktop+ overlays are "elvissteinjr.DesktopPlus<n>" (n = its overlay list: Desktop 1,
+	// Desktop 2, windows...). The dashboard shows one at a time (its 1/2 buttons switch).
+	constexpr const char *kDesktopPlusOverlayPrefix = "elvissteinjr.DesktopPlus";
+	constexpr int kDesktopPlusMaxOverlays = 16;
+
+	// The Desktop+ overlay currently shown, or k_ulOverlayHandleInvalid.
+	vr::VROverlayHandle_t FindShownDesktopPlusPanel()
+	{
+		for ( int i = 0; i < kDesktopPlusMaxOverlays; ++i )
+		{
+			const std::string key = kDesktopPlusOverlayPrefix + std::to_string( i );
+			vr::VROverlayHandle_t handle = vr::k_ulOverlayHandleInvalid;
+			if ( vr::VROverlay()->FindOverlay( key.c_str(), &handle ) != vr::VROverlayError_None )
+			{
+				break;
+			}
+			if ( vr::VROverlay()->IsOverlayVisible( handle ) )
+			{
+				return handle;
+			}
+		}
+		return vr::k_ulOverlayHandleInvalid;
+	}
+
+	struct DesktopPanelPacket
+	{
+		uint32_t magic;
+		uint32_t flags;
+		float transform[ 12 ];
+		float width;
+		float bounds[ 4 ]; // uMin, uMax, vMin, vMax
+	};
+
+	vr::HmdMatrix34_t RigidInverse( const vr::HmdMatrix34_t &m )
+	{
+		vr::HmdMatrix34_t r = {};
+		for ( int i = 0; i < 3; ++i )
+		{
+			for ( int j = 0; j < 3; ++j )
+			{
+				r.m[ i ][ j ] = m.m[ j ][ i ];
+			}
+			r.m[ i ][ 3 ] = -( m.m[ 0 ][ i ] * m.m[ 0 ][ 3 ] + m.m[ 1 ][ i ] * m.m[ 1 ][ 3 ] + m.m[ 2 ][ i ] * m.m[ 2 ][ 3 ] );
+		}
+		return r;
+	}
+
+	vr::HmdMatrix34_t Multiply( const vr::HmdMatrix34_t &a, const vr::HmdMatrix34_t &b )
+	{
+		vr::HmdMatrix34_t r = {};
+		for ( int i = 0; i < 3; ++i )
+		{
+			for ( int j = 0; j < 4; ++j )
+			{
+				r.m[ i ][ j ] = a.m[ i ][ 0 ] * b.m[ 0 ][ j ] + a.m[ i ][ 1 ] * b.m[ 1 ][ j ] + a.m[ i ][ 2 ] * b.m[ 2 ][ j ] +
+				                ( j == 3 ? a.m[ i ][ 3 ] : 0.f );
+			}
+		}
+		return r;
+	}
+
+	// Sends where the shown Desktop+ panel is; returns it (k_ulOverlayHandleInvalid if none shown).
+	vr::VROverlayHandle_t SendDesktopPanelState( bool dashboard_visible, bool keypad_pointer )
+	{
+		if ( g_keypad_socket == INVALID_SOCKET )
+		{
+			return vr::k_ulOverlayHandleInvalid;
+		}
+		DesktopPanelPacket packet = { kDesktopPanelMagic, 0, {}, 0.f, {} };
+		const vr::VROverlayHandle_t handle = dashboard_visible ? FindShownDesktopPlusPanel() : vr::k_ulOverlayHandleInvalid;
+		if ( handle != vr::k_ulOverlayHandleInvalid )
+		{
+			vr::ETrackingUniverseOrigin origin = vr::TrackingUniverseStanding;
+			vr::HmdMatrix34_t transform = {};
+			float width = 0.f;
+			if ( vr::VROverlay()->GetOverlayTransformAbsolute( handle, &origin, &transform ) == vr::VROverlayError_None &&
+			     vr::VROverlay()->GetOverlayWidthInMeters( handle, &width ) == vr::VROverlayError_None &&
+			     origin != vr::TrackingUniverseSeated )
+			{
+				if ( origin == vr::TrackingUniverseStanding )
+				{
+					const vr::HmdMatrix34_t raw_from_standing =
+						RigidInverse( vr::VRSystem()->GetRawZeroPoseToStandingAbsoluteTrackingPose() );
+					transform = Multiply( raw_from_standing, transform );
+				}
+				packet.flags = 1u | ( keypad_pointer ? 2u : 0u );
+				std::memcpy( packet.transform, transform.m, sizeof( packet.transform ) );
+				packet.width = width;
+				vr::VRTextureBounds_t bounds = {};
+				if ( vr::VROverlay()->GetOverlayTextureBounds( handle, &bounds ) == vr::VROverlayError_None )
+				{
+					packet.bounds[ 0 ] = bounds.uMin;
+					packet.bounds[ 1 ] = bounds.uMax;
+					packet.bounds[ 2 ] = bounds.vMin;
+					packet.bounds[ 3 ] = bounds.vMax;
+				}
+			}
+		}
+		sockaddr_in target = {};
+		target.sin_family = AF_INET;
+		target.sin_port = htons( kKeypadPort );
+		target.sin_addr.s_addr = htonl( INADDR_LOOPBACK );
+		sendto( g_keypad_socket, reinterpret_cast< const char * >( &packet ), sizeof( packet ), 0,
+		        reinterpret_cast< const sockaddr * >( &target ), sizeof( target ) );
+		return ( packet.flags & 1u ) != 0 ? handle : vr::k_ulOverlayHandleInvalid;
+	}
+
+	// While the Flow covers the Desktop+ panel with its sharp layer, show the panel itself black:
+	// the streamed picture lags the head a little, so its blurry copy would otherwise peek out
+	// around the layer on head movement. Colour only: making the panel transparent (alpha) stops
+	// Desktop+ taking laser input, and it does not recover until Desktop+ restarts.
+	vr::VROverlayHandle_t g_desktop_panel_blacked = vr::k_ulOverlayHandleInvalid;
+
+	// Blacks out `handle` (the panel the Flow covers), or none; restores the one blacked before.
+	void UpdateDesktopPanelTint( vr::VROverlayHandle_t handle )
+	{
+		if ( g_desktop_panel_blacked != vr::k_ulOverlayHandleInvalid && g_desktop_panel_blacked != handle )
+		{
+			vr::VROverlay()->SetOverlayColor( g_desktop_panel_blacked, 1.f, 1.f, 1.f );
+			g_desktop_panel_blacked = vr::k_ulOverlayHandleInvalid;
+			Log( "Flow desktop layer off this panel: Desktop+ panel restored" );
+		}
+		if ( handle != vr::k_ulOverlayHandleInvalid )
+		{
+			float r = 1.f, g = 1.f, b = 1.f;
+			vr::VROverlay()->GetOverlayColor( handle, &r, &g, &b );
+			if ( r + g + b > 0.001f ) // set by us, or reset by Desktop+
+			{
+				vr::VROverlay()->SetOverlayColor( handle, 0.f, 0.f, 0.f );
+				if ( g_desktop_panel_blacked != handle )
+				{
+					Log( "Flow desktop layer active: Desktop+ panel blacked out" );
+				}
+			}
+			g_desktop_panel_blacked = handle;
+		}
+	}
+
 	// Returns true once the Desktop+ tab has been shown (or there is no reason to show it anymore).
 	bool TryOpenDesktopTab()
 	{
@@ -420,6 +586,20 @@ int main( int argc, char **argv )
 		g_keypad_socket = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
 	}
 	std::thread hook_thread( KeyboardHookThread );
+	// Desktop+'s panel picture, streamed to the Flow's sharp desktop layer (TCP 8005).
+	std::unique_ptr< DesktopLayerStreamer > desktop_layer;
+	{
+		vr::EVRSettingsError error = vr::VRSettingsError_None;
+		const bool enabled = vr::VRSettings()->GetBool( "driver_flowvr", "enable_desktop_layer", &error );
+		if ( error != vr::VRSettingsError_None || enabled )
+		{
+			int32_t mbps = vr::VRSettings()->GetInt32( "driver_flowvr", "desktop_bitrate_mbps", &error );
+			mbps = error == vr::VRSettingsError_None ? ( std::max )( mbps, 5 ) : 30;
+			int32_t fps = vr::VRSettings()->GetInt32( "driver_flowvr", "desktop_fps", &error );
+			fps = error == vr::VRSettingsError_None ? std::clamp( fps, 10, 75 ) : 60;
+			desktop_layer = std::make_unique< DesktopLayerStreamer >( static_cast< uint32_t >( mbps ) * 1000000u, static_cast< uint32_t >( fps ) );
+		}
+	}
 	const vr::VROverlayHandle_t reticle = CreateReticle();
 	bool reticle_shown = false;
 	using Clock = std::chrono::steady_clock;
@@ -508,6 +688,12 @@ int main( int argc, char **argv )
 		const bool dashboard_visible = vr::VROverlay()->IsDashboardVisible();
 		g_keypad_status = dashboard_visible ? kKeypadStatusDashboardVisible : 0u;
 		const bool show_reticle = dashboard_visible && !RightHandConnected();
+		const vr::VROverlayHandle_t panel = SendDesktopPanelState( dashboard_visible, show_reticle );
+		if ( desktop_layer )
+		{
+			desktop_layer->SetPanel( panel );
+		}
+		UpdateDesktopPanelTint( desktop_layer && desktop_layer->Streaming() ? panel : vr::k_ulOverlayHandleInvalid );
 		if ( reticle != vr::k_ulOverlayHandleInvalid && show_reticle != reticle_shown )
 		{
 			reticle_shown = show_reticle;
@@ -524,6 +710,8 @@ int main( int argc, char **argv )
 		std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 	}
 
+	UpdateDesktopPanelTint( vr::k_ulOverlayHandleInvalid );
+	desktop_layer.reset();
 	Log( "SteamVR quit" );
 	while ( g_hook_thread_id == 0 )
 	{

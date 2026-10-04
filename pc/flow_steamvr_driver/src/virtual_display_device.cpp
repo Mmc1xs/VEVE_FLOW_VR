@@ -4,6 +4,7 @@
 #include "driverlog.h"
 #include "flow_nvenc_encoder.h"
 #include "flow_pose_sync.h"
+#include "flow_shared_input.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -851,7 +852,8 @@ bool FlowVirtualDisplayDevice::EnsureH264StreamHeader( const std::vector< uint8_
 	const char magic[ 8 ] = { 'F', 'L', 'O', 'W', 'H', '2', '6', '4' };
 	// Version 4 appends a layout field: 0 = mono screen, 1 = side-by-side stereo eyes.
 	// Version 5 adds a u32 Flow pose sequence to every frame header (see SendH264Packet).
-	const uint32_t version = HostToBigEndian32( 5 );
+	// Version 6 adds the Desktop+ panel (flags, 3x4 transform, width) to every frame header.
+	const uint32_t version = HostToBigEndian32( 6 );
 	const uint32_t width = HostToBigEndian32( stream_width_ );
 	const uint32_t height = HostToBigEndian32( stream_height_ );
 	const uint32_t fps = HostToBigEndian32( kStreamPreviewFps );
@@ -928,12 +930,32 @@ bool FlowVirtualDisplayDevice::SendH264Packet( const std::vector< uint8_t > &pac
 		const uint64_t send_start_ms = EpochMilliseconds();
 		const int64_t be_send_start = HostToBigEndianSigned64( static_cast< int64_t >( send_start_ms ) );
 		const uint32_t be_pose_sequence = HostToBigEndian32( pose_sequence );
+		// Desktop+ panel in the Flow's tracking space (the driver adds kFlowStandingHeightOffset
+		// to the Flow's heights, so take it off again), as big-endian IEEE floats.
+		const FlowDesktopPanel panel = g_desktop_panel.Get();
+		uint32_t be_panel[ 14 ] = {};
+		be_panel[ 0 ] = HostToBigEndian32( panel.visible ? panel.flags : 0u );
+		for ( int i = 0; i < 12; ++i )
+		{
+			float value = panel.transform[ i ];
+			if ( i == 7 )
+			{
+				value -= kFlowStandingHeightOffset; // row 1, column 3: y
+			}
+			uint32_t bits = 0;
+			std::memcpy( &bits, &value, sizeof( bits ) );
+			be_panel[ 1 + i ] = HostToBigEndian32( bits );
+		}
+		uint32_t width_bits = 0;
+		std::memcpy( &width_bits, &panel.width, sizeof( width_bits ) );
+		be_panel[ 13 ] = HostToBigEndian32( width_bits );
 
 		if ( !SendStreamBytes( &be_size, sizeof( be_size ) ) ||
 		     !SendStreamBytes( &be_pts, sizeof( be_pts ) ) ||
 		     !SendStreamBytes( &be_encoded_ready, sizeof( be_encoded_ready ) ) ||
 		     !SendStreamBytes( &be_send_start, sizeof( be_send_start ) ) ||
 		     !SendStreamBytes( &be_pose_sequence, sizeof( be_pose_sequence ) ) ||
+		     !SendStreamBytes( be_panel, sizeof( be_panel ) ) ||
 		     !SendStreamBytes( packet.data() + range.first, size ) )
 		{
 			return false;
@@ -1321,6 +1343,7 @@ void FlowVirtualDisplayDevice::EncodeAndSendSlot( int slot, uint64_t pts_us, uin
 		}
 	}
 
+	CheckStreamDumpRequest();
 	std::vector< uint8_t > packet;
 	if ( !nvenc_encoder_->EncodeTexture( stream_slot_textures_[ slot ], pts_us, packet, &d3d_mutex_ ) )
 	{
@@ -1334,6 +1357,7 @@ void FlowVirtualDisplayDevice::EncodeAndSendSlot( int slot, uint64_t pts_us, uin
 		return;
 	}
 	const auto encode_done = std::chrono::steady_clock::now();
+	RecordStreamDumpPacket( slot, packet );
 
 	if ( !SendH264Packet( packet, pts_us, EpochMilliseconds(), pose_sequence ) )
 	{
@@ -1347,6 +1371,108 @@ void FlowVirtualDisplayDevice::EncodeAndSendSlot( int slot, uint64_t pts_us, uin
 	stats_encode_ms_ += encode_ms;
 	stats_encode_max_ms_ = ( std::max )( stats_encode_max_ms_, encode_ms );
 	stats_send_ms_ += std::chrono::duration< double, std::milli >( send_done - encode_done ).count();
+#endif
+}
+
+// Creating logs\dump_stream.request (checked once a second) records the stream for image
+// quality checks: flow_stream_dump.h264 starts with a forced IDR and holds kStreamDumpFrames
+// frames; flow_stream_input.ppm is the encoder input of the last of them (left|right eyes).
+// `ffmpeg -i flow_stream_dump.h264` then yields what the Flow decodes for that same frame.
+namespace
+{
+	constexpr int kStreamDumpFrames = 75;
+}
+
+void FlowVirtualDisplayDevice::CheckStreamDumpRequest()
+{
+#ifdef _WIN32
+	const auto now = std::chrono::steady_clock::now();
+	if ( stream_dump_frames_left_ > 0 || now < next_stream_dump_check_ )
+	{
+		return;
+	}
+	next_stream_dump_check_ = now + std::chrono::seconds( 1 );
+	static const std::string request = DriverLogPath( "dump_stream.request" );
+	if ( GetFileAttributesA( request.c_str() ) == INVALID_FILE_ATTRIBUTES || !DeleteFileA( request.c_str() ) )
+	{
+		return;
+	}
+	stream_dump_file_ = std::fopen( DriverLogPath( "flow_stream_dump.h264" ).c_str(), "wb" );
+	if ( stream_dump_file_ == nullptr )
+	{
+		TraceVirtualDisplayCall( "stream dump: cannot open flow_stream_dump.h264" );
+		return;
+	}
+	nvenc_encoder_->RequestKeyframe(); // the dump must start decodable
+	stream_dump_frames_left_ = kStreamDumpFrames;
+	TraceVirtualDisplayCall( "stream dump: recording" );
+#endif
+}
+
+void FlowVirtualDisplayDevice::RecordStreamDumpPacket( int slot, const std::vector< uint8_t > &packet )
+{
+#ifdef _WIN32
+	if ( stream_dump_frames_left_ <= 0 || stream_dump_file_ == nullptr )
+	{
+		return;
+	}
+	std::fwrite( packet.data(), 1, packet.size(), stream_dump_file_ );
+	if ( --stream_dump_frames_left_ == 0 )
+	{
+		std::fclose( stream_dump_file_ );
+		stream_dump_file_ = nullptr;
+		WriteEncoderInputPpm( slot ); // the slot stays untouched while it is being encoded
+	}
+#endif
+}
+
+void FlowVirtualDisplayDevice::WriteEncoderInputPpm( int slot )
+{
+#ifdef _WIN32
+	std::lock_guard< std::mutex > lock( d3d_mutex_ );
+	ID3D11Texture2D *source = stream_slot_textures_[ slot ];
+	D3D11_TEXTURE2D_DESC desc{};
+	source->GetDesc( &desc );
+	desc.BindFlags = 0;
+	desc.MiscFlags = 0;
+	desc.Usage = D3D11_USAGE_STAGING;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	ID3D11Texture2D *staging = nullptr;
+	if ( FAILED( d3d_device_->CreateTexture2D( &desc, nullptr, &staging ) ) )
+	{
+		TraceVirtualDisplayCall( "stream dump: staging texture failed" );
+		return;
+	}
+	d3d_context_->CopyResource( staging, source );
+	D3D11_MAPPED_SUBRESOURCE mapped{};
+	if ( FAILED( d3d_context_->Map( staging, 0, D3D11_MAP_READ, 0, &mapped ) ) )
+	{
+		staging->Release();
+		TraceVirtualDisplayCall( "stream dump: map failed" );
+		return;
+	}
+	const bool bgra = desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM || desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+	                  desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS;
+	std::ofstream ppm( DriverLogPath( "flow_stream_input.ppm" ), std::ios::binary );
+	ppm << "P6\n" << desc.Width << " " << desc.Height << "\n255\n";
+	std::vector< char > row( static_cast< size_t >( desc.Width ) * 3 );
+	for ( uint32_t y = 0; y < desc.Height; ++y )
+	{
+		const auto *src = static_cast< const uint8_t * >( mapped.pData ) + static_cast< size_t >( mapped.RowPitch ) * y;
+		for ( uint32_t x = 0; x < desc.Width; ++x )
+		{
+			row[ x * 3 ] = static_cast< char >( src[ x * 4 + ( bgra ? 2 : 0 ) ] );
+			row[ x * 3 + 1 ] = static_cast< char >( src[ x * 4 + 1 ] );
+			row[ x * 3 + 2 ] = static_cast< char >( src[ x * 4 + ( bgra ? 0 : 2 ) ] );
+		}
+		ppm.write( row.data(), static_cast< std::streamsize >( row.size() ) );
+	}
+	d3d_context_->Unmap( staging, 0 );
+	staging->Release();
+	char line[ 128 ];
+	std::snprintf( line, sizeof( line ), "stream dump: wrote %ux%u encoder input (format %d) and %d frames",
+	               desc.Width, desc.Height, static_cast< int >( desc.Format ), kStreamDumpFrames );
+	TraceVirtualDisplayCall( line );
 #endif
 }
 

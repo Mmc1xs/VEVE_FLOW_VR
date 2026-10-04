@@ -4,6 +4,7 @@ PC 上的 SteamVR 畫面用 NVENC 編成 H.264，經 Wi-Fi 串流到 VIVE Flow�
 主要用途：在 Flow 裡看 PC 桌面（Desktop+）；Flow 內建的手部追蹤當作兩支 Index 控制器，USB 數字小鍵盤補上搖桿與按鍵
 （手不在視野內時，小鍵盤是跟著頭部的雷射控制器）。
 PC 播放的聲音（Windows 預設輸出裝置）同步串流到 Flow 的喇叭，PC 喇叭照常出聲。
+控制台裡正在顯示的 Desktop+ 面板另外串流，在 Flow 上以 Wave 合成器圖層顯示（清晰桌面，見下方「清晰桌面」）。
 
 ```
 ┌──────────────────────────── PC (Windows) ─────────────────────────────┐          ┌───── VIVE Flow ──────┐
@@ -18,7 +19,9 @@ PC 播放的聲音（Windows 預設輸出裝置）同步串流到 Flow 的喇叭
 │ flow_dashboard_helper.exe（SteamVR 自動啟動）                         │          └──────────────────────┘
 │   ├ Flow 連上 / 遊戲結束時，若沒有遊戲在跑就打開 Desktop+ 分頁        │
 │   ├ 遊戲開始時關閉控制台；坐姿原點未設定時以目前頭部位置設定          │
-│   └ 攔截數字鍵盤（SteamVR 執行中電腦收不到），轉送按鍵給驅動          │
+│   ├ 攔截數字鍵盤（SteamVR 執行中電腦收不到），轉送按鍵給驅動          │
+│   └ 清晰桌面：Desktop+ 面板的貼圖 → NVENC ────────────────────────────┼─ TCP ──► 合成器圖層
+│     面板位置經驅動附在 8001 每幀（v6），面板本身染黑                  │  8005    （蓋在面板上）
 │ Desktop+（Steam 免費工具）：「只在 Desktop+ 分頁」顯示主螢幕          │
 └───────────────────────────────────────────────────────────────────────┘
 ```
@@ -28,7 +31,7 @@ PC 播放的聲音（Windows 預設輸出裝置）同步串流到 Flow 的喇叭
 | 路徑 | 內容 |
 |---|---|
 | `pc/flow_steamvr_driver/` | SteamVR 驅動（C++/CMake）。設定在 `flowvr/resources/settings/default.vrsettings` |
-| `pc/flow_dashboard_helper/` | SteamVR 背景程式：自動開/關控制台、數字鍵盤擷取 |
+| `pc/flow_dashboard_helper/` | SteamVR 背景程式：自動開/關控制台、數字鍵盤擷取、清晰桌面串流（`desktop_layer_streamer.cpp`，與驅動共用 `flow_nvenc_encoder.cpp`） |
 | `Wave_Native_SDK/samples/wvr_flow_probe/` | Flow 端 APK（Wave Native SDK，Java + C++/GLES） |
 | `Wave_Native_SDK/repo/` | Wave SDK 本機 Maven 套件（**不在版控內**，需自行下載，見下方「Wave SDK」） |
 | `pc/openvr/` | OpenVR SDK v2.15.6（git submodule） |
@@ -118,12 +121,30 @@ Flow 的鏡頭追蹤雙手（每手 26 個關節），驅動把它們變成 Stea
 
 用頭部對準準星，按鍵點擊（雷射只在按住時出現）。SteamVR 執行期間小鍵盤不會打字到電腦；NumLock 與小鍵盤的 ←（Backspace）照常。
 
+### 清晰桌面（Desktop+ 面板以合成器圖層顯示）
+
+串流的 SteamVR 畫面在 Flow 上會被取樣兩次（眼睛緩衝 → timewarp/鏡片變形），加上 SteamVR 合成時的一次，小字會模糊、有條紋。
+Flow 自己的系統介面（FlowOS）用的是 Wave 合成器圖層，只取樣一次，所以清晰（Meta 文件稱為 double sampling）。因此：
+
+- 背景程式找出控制台正在顯示的 Desktop+ overlay（`elvissteinjr.DesktopPlus<n>`，按 1/2 切換的就是不同的 overlay），
+  以 `IVROverlay::GetOverlayTexture` 讀它的貼圖、照面板的貼圖範圍裁切，NVENC 編碼後經 TCP 8005 送給 Flow。
+  內容就是 Desktop+ 顯示的畫面（含它畫的游標）。
+- 面板的位置／寬度由背景程式送給驅動（UDP 8003），驅動換算成 Flow 座標附在 8001 每幀（FLOWH264 v6）。
+- Flow 第二個解碼器解碼後 1:1 複製進 Wave 貼圖佇列，以圖層（左右眼成對）放在面板位置；準星也畫在這層上。
+- 面板本身用 `SetOverlayColor` 染黑：串流畫面比頭部慢約 55 ms，不染黑的話轉頭時模糊的那份會從圖層後面露出來。
+  **不能改透明度**：Desktop+ 面板 alpha 為 0 或 0.01 時不再接受雷射點擊，改回來也要重開 Desktop+ 才恢復。
+- 控制台關閉時暫停串流（連線保留，按 `*` 叫回來立即清晰）；Flow 斷線或串流沒在跑時面板恢復原色。
+- **限制**：Flow 的 `WVR_GetMaxFrameLayerCount` = 4 是兩眼合計，扣掉兩眼內容層只剩一組圖層；送兩組時幀率掉到 14–26 fps。
+  所以同時只有一個 Desktop+ overlay 是清晰的，其他（浮動視窗等）維持串流畫面。
+- Desktop+ 面板要是平面（`install.ps1` 設 `Curvature=0`）；Wave 的圓柱圖層是實驗功能。
+
 ## 設定在哪裡
 
 | 設定 | 位置 | 套用方式 |
 |---|---|---|
 | 解析度 3200×1600、位元率 100 Mbps、NVENC P4、FOV、IPD | `pc/flow_steamvr_driver/flowvr/resources/settings/default.vrsettings` | `build.ps1`（複製到 dist）後重開 SteamVR |
 | PC 聲音串流到 Flow 開關 | 同上 `driver_flowvr.enable_audio` | 同上 |
+| 清晰桌面開關、位元率 30 Mbps、60 fps | 同上 `driver_flowvr.enable_desktop_layer`、`desktop_bitrate_mbps`、`desktop_fps`（由背景程式讀取） | 同上 |
 | 數字鍵盤控制器開關 | 同上 `driver_flowvr.enable_keypad_controller` | 同上 |
 | 手部 Index 控制器開關、雷射俯仰微調 | 同上 `driver_flowvr.enable_hand_controllers`、`hand_pitch_offset_deg` | 同上 |
 | Flow 手部追蹤（預設開） | `hellovr.cpp` 的 `FLOW_DEFAULT_HANDS`；即時開關 `adb shell setprop debug.flow.hands 0/1` | APK 或 setprop |
@@ -131,7 +152,8 @@ Flow 的鏡頭追蹤雙手（每手 26 個關節），驅動把它們變成 Stea
 | SteamVR overlay 品質 High、閒置 10 分鐘進入待機 | `scripts/install.ps1` 開頭 `$SteamVRSettings` | `install.ps1`（存在 `steamvr.vrsettings`，重開機仍有效） |
 | Flow 眼睛緩衝 1600、銳化（預設關） | `.../wvr_flow_probe/app/src/main/jni/hellovr.cpp` 開頭的 `FLOW_*` | `build.ps1` + `install.ps1` |
 
-網路：TCP 8001（影像 PC→Flow）、UDP 8002（頭部姿態與雙手 Flow→PC、discovery PC→Flow）、UDP 127.0.0.1:8003（鍵盤→驅動）、TCP 8004（聲音 PC→Flow，48 kHz 16-bit 立體聲 PCM）。
+網路：TCP 8001（影像 PC→Flow）、UDP 8002（頭部姿態與雙手 Flow→PC、discovery PC→Flow）、UDP 127.0.0.1:8003（鍵盤→驅動）、TCP 8004（聲音 PC→Flow，48 kHz 16-bit 立體聲 PCM）、
+TCP 8005（清晰桌面 PC→Flow，背景程式送出）。
 Windows 防火牆若詢問，請允許 SteamVR (vrserver) 使用私人網路。
 
 ## 開發模式（不戴頭盔測試）
@@ -167,6 +189,14 @@ powershell -ExecutionPolicy Bypass -File scripts\dev-awake.ps1 -Off   # 關閉
 - Flow 記錄：`adb logcat -s FlowProbe vrsample`（`stream rates` 收/解碼幀率、`timewarp poseAge` 往返延遲，1 步 ≈ 13.3 ms）
 - 背景程式記錄：`pc\flow_dashboard_helper\build\dist\flow_dashboard_helper.log`
 - 銳化即時調整：`adb shell setprop debug.flow.sharpen 0.8`（0–2，0 = 關）
+- 清晰桌面：Flow 記錄 `desktop rates`（收/顯示幀率）、`Desktop+ panel shown/hidden`；背景程式記錄 `desktop layer: ...`、`Desktop+ panel blacked out/restored`。
+  Flow 上暫時關閉：`adb shell setprop debug.flow.desktop 0`
+- 畫質診斷（各階段全解析度擷取）：在 `...\dist\flowvr\logs\` 建立 `dump_stream.request` → 驅動寫出
+  `flow_stream_input.ppm`（編碼器輸入）與 `flow_stream_dump.h264`（之後 1 秒，用 ffmpeg 解最後一幀比對壓縮）；
+  `adb shell setprop debug.flow.dumpeye <新值>` → Flow 寫出眼睛緩衝 `files/flow_eye_left.ppm`（`adb exec-out run-as com.htc.vr.samples.wvr_flow_probe cat files/flow_eye_left.ppm`）
+- 眼睛緩衝大小：`debug.flow.eyebuffer`（App 啟動時讀，預設 1600）；Wave 銳化 `debug.flow.fse 0..1`（App 啟動時讀，只作用於內容層）
+- 圖層 A/B 測試：`debug.flow.layertest 1` 兩眼顯示同一張圖（`files/test_1080.png` / `test_4k.png`，自行推入），
+  一眼走眼睛緩衝、另一眼走合成器圖層；`.eye`、`.image`、`.width`、`.shape`、`.count` 切換
 - 聲音：SteamVR 記錄 `Flow audio: ...`（擷取格式、每 10 秒送出秒數）；Flow 記錄的 `audio` 行（每 10 秒收到/丟棄的 10 ms 區塊、補靜音次數、排隊延遲 `queuedMs`、斷音累計）
 - 手部：SteamVR 記錄 `Steam\logs\vrserver.txt` 每 2 秒一行 `Flow hand ...`（捏合、Trigger、各指彎曲、Grip、鍵盤）；Flow 記錄的 `hands` 行（追蹤頻率、左右手有效比例、捏合比例）
 
@@ -175,6 +205,7 @@ powershell -ExecutionPolicy Bypass -File scripts\dev-awake.ps1 -Off   # 關閉
 - Flow 面板每度像素少於桌面：小字偏軟，主要靠放大 Desktop+ 畫面改善（目前 248 cm）。
 - 往返延遲約 55 ms；頭部轉動由 Wave timewarp 依渲染姿態補償，平移不補償。
 - 小鍵盤的 ←（Backspace）與主鍵盤無法區分，所以不攔截。
+- 清晰桌面同時只能一個 Desktop+ overlay（Flow 只有一組額外圖層，見「清晰桌面」）。
 - 手部控制器還沒有手指骨架（`/input/skeleton`）：遊戲裡看到的是 Index 控制器模型，不會顯示手指動作。
 - 搖桿只能用小鍵盤，手勢沒有對應。
 - Flow 拿下約 5 秒就休眠，無法在不 root 的情況下永久改長：秒數在 OEM 服務（`vive.wave.vr.oem`）的資料庫

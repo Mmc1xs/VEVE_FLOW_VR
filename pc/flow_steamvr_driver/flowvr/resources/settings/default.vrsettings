@@ -6,6 +6,9 @@
 		"enable_keypad_controller": true,
 		"enable_hand_controllers": true,
 		"enable_audio": true,
+		"enable_desktop_layer": true,
+		"desktop_bitrate_mbps": 30,
+		"desktop_fps": 60,
 		"hand_pitch_offset_deg": 0.0
 	},
 	"flowvr_display": {

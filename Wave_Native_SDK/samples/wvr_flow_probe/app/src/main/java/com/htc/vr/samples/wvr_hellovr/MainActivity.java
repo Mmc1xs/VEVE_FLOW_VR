@@ -63,6 +63,9 @@ public class MainActivity extends VRActivity {
     private static final int AUDIO_MAX_QUEUED_MS = 60;
     // Silence written ahead of the first chunk after the queue ran dry, as a jitter cushion.
     private static final int AUDIO_REFILL_PAD_MS = 20;
+    // Desktop layer stream (FLOWH264 from the PC desktop sender): shown by the native renderer
+    // as a Wave compositor layer. Same host as the video stream.
+    private static final int DESKTOP_PORT = 8005;
     private static final int STREAM_LAYOUT_MONO = 0;
     private static final boolean USE_SOCKET_H264_FEEDER = true;
     private static final boolean USE_RAW_H264_FEEDER = true;
@@ -77,6 +80,10 @@ public class MainActivity extends VRActivity {
     private volatile int mDecoderTextureName;
     private SurfaceTexture mDecoderTexture;
     private Surface mDecoderSurface;
+    // Desktop layer: texture owned by the native renderer, surface used by DesktopThread.
+    private volatile int mDesktopTextureName;
+    private SurfaceTexture mDesktopTexture;
+    private static volatile Surface sDesktopSurface;
 
     static {
         System.loadLibrary("hellovr_jni");
@@ -95,6 +102,9 @@ public class MainActivity extends VRActivity {
         Log.i(TAG, "onResume");
         // onPause tears the decoder down (e.g. headset taken off); bring it back once the
         // native renderer has handed us its texture. The first start comes from native initGL.
+        if (mDesktopTextureName != 0 && mDesktopTexture == null) {
+            startDesktopSurface(mDesktopTextureName);
+        }
         if (mDecoderTextureName != 0 && mDecoderThread == null) {
             startDecoderSurface(mDecoderTextureName);
         }
@@ -104,6 +114,7 @@ public class MainActivity extends VRActivity {
     protected void onPause() {
         Log.i(TAG, "onPause");
         stopDecoder();
+        stopDesktopSurface();
         super.onPause();
     }
 
@@ -145,6 +156,38 @@ public class MainActivity extends VRActivity {
             mDecoderTexture = null;
         }
     }
+
+    @SuppressWarnings("unused")
+    public synchronized void startDesktopSurface(int textureName) {
+        Log.i(TAG, "startDesktopSurface texture=" + textureName);
+        stopDesktopSurface();
+        mDesktopTextureName = textureName;
+        mDesktopTexture = new SurfaceTexture(textureName);
+        mDesktopTexture.setDefaultBufferSize(1920, 1080);
+        sDesktopSurface = new Surface(mDesktopTexture);
+        setDesktopSurfaceTexture(mDesktopTexture);
+    }
+
+    // Called after stopDecoder, which has already stopped the DesktopThread using the surface.
+    private synchronized void stopDesktopSurface() {
+        clearDesktopSurfaceTexture();
+        Surface surface = sDesktopSurface;
+        sDesktopSurface = null;
+        if (surface != null) {
+            surface.release();
+        }
+        if (mDesktopTexture != null) {
+            mDesktopTexture.release();
+            mDesktopTexture = null;
+        }
+    }
+
+    private native void setDesktopSurfaceTexture(SurfaceTexture surfaceTexture);
+    private native void clearDesktopSurfaceTexture();
+    private static native void setDesktopStreamInfo(int width, int height);
+    // Desktop+ panel from the v6 frame header: flags (bit 0 = show), row-major 3x4 transform in
+    // this headset's tracking space, width in metres.
+    private static native void setDesktopPanel(int flags, float[] transform, float width);
 
     private native void setDecoderSurfaceTexture(SurfaceTexture surfaceTexture);
     private native void clearDecoderSurfaceTexture();
@@ -304,6 +347,192 @@ public class MainActivity extends VRActivity {
         }
     }
 
+    // Receives the desktop stream (TCP 8005) and decodes it into sDesktopSurface; reconnects
+    // while the main video stream is up. Nothing listening = no desktop layer.
+    private static final class DesktopThread extends Thread {
+        private final String mHost;
+        private volatile boolean mStop;
+        private volatile Socket mSocket;
+
+        DesktopThread(String host) {
+            super("FlowProbeDesktop");
+            mHost = host;
+        }
+
+        void requestStop() {
+            mStop = true;
+            Socket socket = mSocket;
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (Exception ignored) {
+                }
+            }
+            interrupt();
+            try {
+                join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Override
+        public void run() {
+            while (!mStop) {
+                try {
+                    playOnce();
+                } catch (Exception e) {
+                    if (!mStop) {
+                        Log.w(TAG, "desktop stream ended: " + e);
+                    }
+                }
+                setDesktopStreamInfo(0, 0);
+                if (!mStop) {
+                    try {
+                        Thread.sleep(300); // e.g. the PC switched monitors and closed the stream
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }
+            Log.i(TAG, "desktop thread stopped");
+        }
+
+        private static byte[] readBlob(DataInputStream input) throws Exception {
+            int length = input.readInt();
+            if (length < 0 || length > 1024 * 1024) {
+                throw new IllegalStateException("bad desktop header blob: " + length);
+            }
+            byte[] blob = new byte[length];
+            input.readFully(blob);
+            return blob;
+        }
+
+        private void playOnce() throws Exception {
+            Surface surface = sDesktopSurface;
+            if (surface == null || mStop) {
+                return;
+            }
+            Socket socket = new Socket();
+            mSocket = socket;
+            MediaCodec codec = null;
+            try {
+                socket.connect(new InetSocketAddress(mHost, DESKTOP_PORT), SOCKET_CONNECT_TIMEOUT_MS);
+                // No read timeout: the PC sends nothing while the dashboard is closed (e.g. in a
+                // game), and the stream must still be up when it reopens. This thread ends with
+                // the main video stream anyway (requestStop closes the socket).
+                socket.setSoTimeout(0);
+                DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 256 * 1024));
+                byte[] magic = new byte[SOCKET_MAGIC.length()];
+                input.readFully(magic);
+                if (!SOCKET_MAGIC.equals(new String(magic, StandardCharsets.US_ASCII))) {
+                    throw new IllegalStateException("bad desktop stream magic");
+                }
+                int version = input.readInt();
+                int width = input.readInt();
+                int height = input.readInt();
+                int fps = input.readInt();
+                if (version >= 4) {
+                    input.readInt(); // layout: always mono here
+                }
+                byte[] sps = readBlob(input);
+                byte[] pps = readBlob(input);
+
+                MediaFormat format = MediaFormat.createVideoFormat("video/avc", width, height);
+                format.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
+                format.setByteBuffer("csd-0", ByteBuffer.wrap(sps));
+                format.setByteBuffer("csd-1", ByteBuffer.wrap(pps));
+                codec = MediaCodec.createDecoderByType("video/avc");
+                codec.configure(format, surface, null, 0);
+                codec.start();
+                setDesktopStreamInfo(width, height);
+                Log.i(TAG, "desktop stream started host=" + mHost + ":" + DESKTOP_PORT + " version=" + version
+                        + " size=" + width + "x" + height + " fps=" + fps + " codec=" + codec.getName());
+
+                MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+                long windowStartNs = System.nanoTime();
+                int received = 0;
+                int rendered = 0;
+                while (!mStop) {
+                    int size = input.readInt();
+                    if (size < 0) {
+                        break;
+                    }
+                    if (size > 4 * 1024 * 1024) {
+                        throw new IllegalStateException("oversized desktop frame: " + size);
+                    }
+                    long ptsUs = input.readLong();
+                    if (version >= 3) {
+                        input.readLong();
+                        input.readLong();
+                        if (version >= 5) {
+                            input.readInt();
+                        }
+                    } else if (version >= 2) {
+                        input.readLong();
+                    }
+                    byte[] frame = new byte[size];
+                    input.readFully(frame);
+                    if (version >= 3) {
+                        input.readLong();
+                    }
+                    ++received;
+
+                    int inputIndex = -1;
+                    while (!mStop && inputIndex < 0) {
+                        inputIndex = codec.dequeueInputBuffer(5000);
+                        rendered += drain(codec, info);
+                    }
+                    if (inputIndex >= 0) {
+                        ByteBuffer buffer = codec.getInputBuffer(inputIndex);
+                        buffer.clear();
+                        buffer.put(frame);
+                        codec.queueInputBuffer(inputIndex, 0, frame.length, ptsUs, 0);
+                    }
+                    rendered += drain(codec, info);
+
+                    long now = System.nanoTime();
+                    if (now - windowStartNs >= 10000000000L) {
+                        double seconds = (now - windowStartNs) / 1e9;
+                        Log.i(TAG, String.format(java.util.Locale.US, "desktop rates recvFps=%.1f renderedFps=%.1f",
+                                received / seconds, rendered / seconds));
+                        windowStartNs = now;
+                        received = 0;
+                        rendered = 0;
+                    }
+                }
+            } finally {
+                mSocket = null;
+                try {
+                    socket.close();
+                } catch (Exception ignored) {
+                }
+                if (codec != null) {
+                    try {
+                        codec.stop();
+                    } catch (Exception ignored) {
+                    }
+                    codec.release();
+                }
+            }
+        }
+
+        // Renders every decoded frame to the surface (the renderer latches the newest one).
+        private static int drain(MediaCodec codec, MediaCodec.BufferInfo info) {
+            int rendered = 0;
+            while (true) {
+                int outputIndex = codec.dequeueOutputBuffer(info, 0);
+                if (outputIndex < 0) {
+                    return rendered;
+                }
+                codec.releaseOutputBuffer(outputIndex, info.size > 0);
+                if (info.size > 0) {
+                    ++rendered;
+                }
+            }
+        }
+    }
+
     private static final class DecoderThread extends Thread {
         private final AssetManager mAssets;
         private final Surface mSurface;
@@ -420,12 +649,15 @@ public class MainActivity extends VRActivity {
             MediaCodec codec = null;
             Socket socket = null;
             AudioThread audio = null;
+            DesktopThread desktop = null;
             try {
                 socket = connectSocket();
                 socket.setSoTimeout(SOCKET_READ_TIMEOUT_MS);
                 setPoseTargetHost(socket.getInetAddress().getHostAddress());
                 audio = new AudioThread(socket.getInetAddress().getHostAddress());
                 audio.start();
+                desktop = new DesktopThread(socket.getInetAddress().getHostAddress());
+                desktop.start();
 
                 DataInputStream input = new DataInputStream(
                         new BufferedInputStream(socket.getInputStream(), 64 * 1024));
@@ -474,6 +706,7 @@ public class MainActivity extends VRActivity {
                         + " pps=" + pps.length);
 
                 MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+                float[] panelTransform = new float[12];
                 // Live stream: release frames as soon as they decode (no pacing, see paceFrame).
                 long firstWallMs = -1;
                 int queuedFrames = 0;
@@ -509,6 +742,13 @@ public class MainActivity extends VRActivity {
                         sentEpochMs = sendStartMs;
                         if (version >= 5) {
                             poseSequence = input.readInt();
+                        }
+                        if (version >= 6) {
+                            int panelFlags = input.readInt();
+                            for (int i = 0; i < 12; ++i) {
+                                panelTransform[i] = input.readFloat();
+                            }
+                            setDesktopPanel(panelFlags, panelTransform, input.readFloat());
                         }
                     } else if (version >= 2) {
                         sentEpochMs = input.readLong();
@@ -558,6 +798,9 @@ public class MainActivity extends VRActivity {
             } finally {
                 if (audio != null) {
                     audio.requestStop();
+                }
+                if (desktop != null) {
+                    desktop.requestStop();
                 }
                 if (codec != null) {
                     try {

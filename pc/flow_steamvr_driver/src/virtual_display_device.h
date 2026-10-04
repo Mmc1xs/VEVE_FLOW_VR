@@ -54,6 +54,10 @@ private:
 	void ProbeSharedTexture( const vr::PresentInfo_t &present_info, uint64_t present_count );
 	void DumpTexturePreview( ID3D11Texture2D *texture, const vr::PresentInfo_t &present_info );
 	void FinishTexturePreviewDump();
+	// Diagnostics (encode thread): logs\dump_stream.request records the next second of the stream.
+	void CheckStreamDumpRequest();
+	void RecordStreamDumpPacket( int slot, const std::vector< uint8_t > &packet );
+	void WriteEncoderInputPpm( int slot );
 	void StreamTexturePreview( ID3D11Texture2D *texture, const vr::PresentInfo_t &present_info, uint64_t present_count );
 	bool EnsureStreamDownsampleResources( uint32_t source_format );
 	bool RenderStreamDownsample( ID3D11Texture2D *texture, int slot );
@@ -119,6 +123,11 @@ private:
 	// Preview copy queued on the GPU, read back on a later Present once it has finished.
 	bool dump_readback_pending_ = false;
 	uint64_t dump_frame_id_ = 0;
+	// Stream dump: an IDR plus the following frames as raw H.264, and the encoder input of the
+	// last one as a full-size PPM, so the decoded last frame can be compared pixel for pixel.
+	FILE *stream_dump_file_ = nullptr;
+	int stream_dump_frames_left_ = 0;
+	std::chrono::steady_clock::time_point next_stream_dump_check_;
 	std::chrono::steady_clock::time_point last_stream_connect_attempt_;
 	std::chrono::steady_clock::time_point next_stream_frame_;
 

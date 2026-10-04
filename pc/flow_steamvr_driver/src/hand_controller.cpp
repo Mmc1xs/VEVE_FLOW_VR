@@ -266,13 +266,23 @@ void FlowHandControllerDevice::MyRunFrame()
 	}
 	// While the dashboard is open the laser only reaches the overlays during a pinch, a fist or
 	// a keypad press (see FlowPointerGate); the first moments of each are held back.
-	pointer_gate_.Update( pinch > kAimPinch || grip_value > kAimGrip || ( keys & kFlowAimingButtons ) != 0 );
+	pointer_gate_.Update( pinch > kAimPinch || grip_value > kAimGrip || ( keys & kFlowAimingButtons ) != 0 ||
+	                      pointer_gate_.TapPending() );
 	if ( !pointer_gate_.ClickAllowed() )
 	{
 		pinch = 0.0f;
 		grip_value = 0.0f;
 		grip_force = 0.0f;
-		keys &= ~kFlowAimingButtons;
+	}
+	keys = ( keys & ~kFlowAimingButtons ) | pointer_gate_.FilterButtons( keys & kFlowAimingButtons );
+	if ( ( keys & KeypadButton_Trigger ) != 0 )
+	{
+		pinch = 1.0f; // also a replayed keypad tap
+	}
+	if ( ( keys & KeypadButton_Grip ) != 0 )
+	{
+		grip_value = 1.0f;
+		grip_force = 1.0f;
 	}
 	// Click with hysteresis so a pinch held near the threshold does not chatter.
 	trigger_clicked_ = trigger_clicked_ ? pinch > 0.6f : pinch > 0.85f;

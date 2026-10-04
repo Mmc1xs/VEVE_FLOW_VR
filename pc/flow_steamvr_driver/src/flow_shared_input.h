@@ -63,6 +63,52 @@ inline bool FlowDashboardVisible()
 // the head-aimed keypad controller steps aside.
 inline std::atomic< bool > g_right_hand_controller_active{ false };
 
+// ---- Desktop+ panel ------------------------------------------------------------------------
+
+// Where Desktop+ draws its desktop panel (sent by the helper while the dashboard shows it), so
+// the Flow can put its sharp desktop layer exactly there. Transform: row-major 3x4 in the
+// driver's raw tracking space, including Desktop+'s scale; width in metres.
+struct FlowDesktopPanel
+{
+	bool visible = false;
+	uint32_t flags = 0; // as sent by the helper (bit 0 = show, bit 1 = keypad reticle)
+	float transform[ 12 ] = {};
+	float width = 0.0f;
+	// Part of Desktop+'s texture the panel shows (uMin, uMax, vMin, vMax; v down). The texture
+	// holds all monitors as laid out on the virtual desktop, so this tells which monitor it is.
+	// All zero = unknown (older helper): the primary monitor.
+	float bounds[ 4 ] = {};
+	int64_t updated_ms = 0;
+};
+
+class FlowDesktopPanelStore
+{
+public:
+	void Store( const FlowDesktopPanel &panel )
+	{
+		std::lock_guard< std::mutex > lock( mutex_ );
+		panel_ = panel;
+	}
+
+	// Hidden once the helper has been silent for a while (it sends every 100 ms).
+	FlowDesktopPanel Get() const
+	{
+		std::lock_guard< std::mutex > lock( mutex_ );
+		FlowDesktopPanel panel = panel_;
+		if ( FlowSteadyMilliseconds() - panel.updated_ms > 500 )
+		{
+			panel.visible = false;
+		}
+		return panel;
+	}
+
+private:
+	mutable std::mutex mutex_;
+	FlowDesktopPanel panel_;
+};
+
+inline FlowDesktopPanelStore g_desktop_panel;
+
 // ---- Tracked hands --------------------------------------------------------------------------
 
 // Wave natural hand tracker joints (WVR_HandJoint order).
