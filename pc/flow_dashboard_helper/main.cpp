@@ -371,7 +371,8 @@ namespace
 	// clicks and its tools. Sent every loop: magic, flags (bit 0 = show, bit 1 = the head-aimed
 	// keypad pointer is active: draw its reticle on the layer, which hides ours), the panel's 3x4
 	// transform in the driver's raw tracking space (row-major, includes Desktop+'s scale), width,
-	// and the overlay's texture bounds (which part of Desktop+'s all-monitors texture it shows).
+	// the overlay's texture bounds (which part of Desktop+'s all-monitors texture it shows) and its
+	// curvature (SteamVR's: width / (2 pi radius), bent towards the viewer; 0 = flat).
 	constexpr uint32_t kDesktopPanelMagic = 0x31504446; // "FDP1"
 	// Desktop+ overlays are "elvissteinjr.DesktopPlus<n>" (n = its overlay list: Desktop 1,
 	// Desktop 2, windows...). The dashboard shows one at a time (its 1/2 buttons switch).
@@ -404,6 +405,7 @@ namespace
 		float transform[ 12 ];
 		float width;
 		float bounds[ 4 ]; // uMin, uMax, vMin, vMax
+		float curvature;
 	};
 
 	vr::HmdMatrix34_t RigidInverse( const vr::HmdMatrix34_t &m )
@@ -441,7 +443,7 @@ namespace
 		{
 			return vr::k_ulOverlayHandleInvalid;
 		}
-		DesktopPanelPacket packet = { kDesktopPanelMagic, 0, {}, 0.f, {} };
+		DesktopPanelPacket packet = { kDesktopPanelMagic, 0, {}, 0.f, {}, 0.f };
 		const vr::VROverlayHandle_t handle = dashboard_visible ? FindShownDesktopPlusPanel() : vr::k_ulOverlayHandleInvalid;
 		if ( handle != vr::k_ulOverlayHandleInvalid )
 		{
@@ -469,6 +471,7 @@ namespace
 					packet.bounds[ 2 ] = bounds.vMin;
 					packet.bounds[ 3 ] = bounds.vMax;
 				}
+				vr::VROverlay()->GetOverlayCurvature( handle, &packet.curvature );
 			}
 		}
 		sockaddr_in target = {};

@@ -218,4 +218,4 @@ void FlowProbe_SetPoseTargetHost(const char *host);
 void FlowProbe_SetDesktopSurfaceTexture(JNIEnv *env, jobject surfaceTexture);
 void FlowProbe_ClearDesktopSurfaceTexture(JNIEnv *env);
 void FlowProbe_SetDesktopStreamInfo(int width, int height);
-void FlowProbe_SetDesktopPanel(int flags, const float transform[12], float width);
+void FlowProbe_SetDesktopPanel(int flags, const float transform[12], float width, float curvature);

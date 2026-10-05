@@ -86,6 +86,8 @@ struct FlowDesktopPanel
 	// holds all monitors as laid out on the virtual desktop, so this tells which monitor it is.
 	// All zero = unknown (older helper): the primary monitor.
 	float bounds[ 4 ] = {};
+	// SteamVR overlay curvature: width / (2 pi radius), bent towards the viewer; 0 = flat.
+	float curvature = 0.0f;
 	int64_t updated_ms = 0;
 };
 

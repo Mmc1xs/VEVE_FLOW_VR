@@ -186,8 +186,8 @@ public class MainActivity extends VRActivity {
     private native void clearDesktopSurfaceTexture();
     private static native void setDesktopStreamInfo(int width, int height);
     // Desktop+ panel from the v6 frame header: flags (bit 0 = show), row-major 3x4 transform in
-    // this headset's tracking space, width in metres.
-    private static native void setDesktopPanel(int flags, float[] transform, float width);
+    // this headset's tracking space, width in metres; v7 adds SteamVR's curvature (0 = flat).
+    private static native void setDesktopPanel(int flags, float[] transform, float width, float curvature);
 
     private native void setDecoderSurfaceTexture(SurfaceTexture surfaceTexture);
     private native void clearDecoderSurfaceTexture();
@@ -748,7 +748,9 @@ public class MainActivity extends VRActivity {
                             for (int i = 0; i < 12; ++i) {
                                 panelTransform[i] = input.readFloat();
                             }
-                            setDesktopPanel(panelFlags, panelTransform, input.readFloat());
+                            float panelWidth = input.readFloat();
+                            float panelCurvature = version >= 7 ? input.readFloat() : 0.0f;
+                            setDesktopPanel(panelFlags, panelTransform, panelWidth, panelCurvature);
                         }
                     } else if (version >= 2) {
                         sentEpochMs = input.readLong();

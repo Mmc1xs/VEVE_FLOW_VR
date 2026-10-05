@@ -63,7 +63,14 @@ struct DesktopPanel {
     int flags = 0; // bit 1 = keypad pointer active: draw its reticle
     float transform[12] = {}; // row-major 3x4, includes Desktop+'s scale
     float width = 0.0f;
+    // SteamVR curvature: width / (2 pi radius); the panel bends towards the viewer (+z). 0 = flat.
+    float curvature = 0.0f;
 };
+
+// Radius of a curved panel `width` metres wide (arc length), or 0 when it is flat.
+static float desktopPanelRadius(const DesktopPanel &panel, float width) {
+    return panel.curvature > 1e-3f ? width / (2.0f * static_cast<float>(M_PI) * panel.curvature) : 0.0f;
+}
 static std::mutex gDesktopPanelMutex;
 static DesktopPanel gDesktopPanel;
 
@@ -1022,19 +1029,50 @@ bool MainApplication::desktopReticleUv(float *u, float *v) const {
     const float ay[3] = {m[1] / scale, m[5] / scale, m[9] / scale};
     const float az[3] = {m[2] / scale, m[6] / scale, m[10] / scale};
     const float c[3] = {m[3], m[7], m[11]};
-    const float denom = d[0] * az[0] + d[1] * az[1] + d[2] * az[2];
-    if (fabsf(denom) < 1e-4f) {
-        return false;
-    }
-    const float t = ((c[0] - o[0]) * az[0] + (c[1] - o[1]) * az[1] + (c[2] - o[2]) * az[2]) / denom;
-    if (t <= 0.0f) {
-        return false;
-    }
-    const float p[3] = {o[0] + t * d[0] - c[0], o[1] + t * d[1] - c[1], o[2] + t * d[2] - c[2]};
     const float width = panel.width * scale;
     const float height = width * static_cast<float>(mDesktopQueueSize[1]) / static_cast<float>(mDesktopQueueSize[0]);
-    *u = (p[0] * ax[0] + p[1] * ax[1] + p[2] * ax[2]) / width + 0.5f;
-    *v = (p[0] * ay[0] + p[1] * ay[1] + p[2] * ay[2]) / height + 0.5f;
+    const float radius = desktopPanelRadius(panel, width);
+    // Laser in panel space (x right, y up, z towards the viewer; origin at the panel centre).
+    float lo2[3], ld2[3];
+    const float co[3] = {o[0] - c[0], o[1] - c[1], o[2] - c[2]};
+    const float *axes[3] = {ax, ay, az};
+    for (int i = 0; i < 3; ++i) {
+        lo2[i] = co[0] * axes[i][0] + co[1] * axes[i][1] + co[2] * axes[i][2];
+        ld2[i] = d[0] * axes[i][0] + d[1] * axes[i][1] + d[2] * axes[i][2];
+    }
+    float x = 0.0f, y = 0.0f;
+    if (radius > 0.0f) {
+        // Cylinder around the axis x = 0, z = radius (parallel to y): take the far hit, the
+        // surface in front of a viewer inside it. x becomes the arc length from the centre.
+        const float oz = lo2[2] - radius;
+        const float a = ld2[0] * ld2[0] + ld2[2] * ld2[2];
+        const float b = lo2[0] * ld2[0] + oz * ld2[2];
+        const float k = lo2[0] * lo2[0] + oz * oz - radius * radius;
+        const float disc = b * b - a * k;
+        if (a < 1e-8f || disc < 0.0f) {
+            return false;
+        }
+        const float t = (-b + sqrtf(disc)) / a;
+        if (t <= 0.0f) {
+            return false;
+        }
+        const float px = lo2[0] + t * ld2[0];
+        const float pz = oz + t * ld2[2];
+        x = radius * atan2f(px, -pz);
+        y = lo2[1] + t * ld2[1];
+    } else {
+        if (fabsf(ld2[2]) < 1e-4f) {
+            return false;
+        }
+        const float t = -lo2[2] / ld2[2];
+        if (t <= 0.0f) {
+            return false;
+        }
+        x = lo2[0] + t * ld2[0];
+        y = lo2[1] + t * ld2[1];
+    }
+    *u = x / width + 0.5f;
+    *v = y / height + 0.5f;
     return *u >= 0.0f && *u <= 1.0f && *v >= 0.0f && *v <= 1.0f;
 }
 
@@ -1110,6 +1148,14 @@ bool MainApplication::submitDesktopFrame() {
     }
     const float width = panel.width * scale;
     const float height = width * static_cast<float>(mDesktopQueueSize[1]) / static_cast<float>(mDesktopQueueSize[0]);
+    // A curved panel is a Wave cylinder layer, posed at the cylinder's axis: radius in front of
+    // the panel centre (along its +z, towards the viewer).
+    const float radius = desktopPanelRadius(panel, width);
+    if (radius > 0.0f) {
+        pose.position.v[0] += r02 * radius;
+        pose.position.v[1] += r12 * radius;
+        pose.position.v[2] += r22 * radius;
+    }
     WVR_Vector3f_t size = {};
     size.v[0] = width;
     size.v[1] = height;
@@ -1123,7 +1169,7 @@ bool MainApplication::submitDesktopFrame() {
         layer.layout.rightUpUVs.v[0] = 1.0f;
         layer.layout.rightUpUVs.v[1] = 1.0f;
         layer.opts = WVR_TextureOption_None;
-        layer.shape = WVR_TextureShape_Quad;
+        layer.shape = radius > 0.0f ? WVR_TextureShape_Cylinder : WVR_TextureShape_Quad;
         layer.type = WVR_TextureLayerType_Overlay;
         layer.compositionDepth = 7;
         layer.pose = &mLayerTestPose;
@@ -1131,6 +1177,7 @@ bool MainApplication::submitDesktopFrame() {
         layer.size = &size;
         layer.width = static_cast<uint32_t>(mDesktopQueueSize[0]);
         layer.height = static_cast<uint32_t>(mDesktopQueueSize[1]);
+        layer.cylinderRadius = radius;
     }
     const WVR_SubmitError error = WVR_SubmitFrameLayers(layers, 4, WVR_SubmitExtend_Default);
     if (error != WVR_SubmitError_None) {
@@ -1872,15 +1919,16 @@ void FlowProbe_SetDesktopStreamInfo(int width, int height) {
     LOGI("%s desktop stream size=%dx%d", FLOW_LOG_TAG, width, height);
 }
 
-void FlowProbe_SetDesktopPanel(int flags, const float transform[12], float width) {
+void FlowProbe_SetDesktopPanel(int flags, const float transform[12], float width, float curvature) {
     std::lock_guard<std::mutex> lock(gDesktopPanelMutex);
     const bool visible = (flags & 1) != 0;
     if (visible != gDesktopPanel.visible) {
-        LOGI("%s Desktop+ panel %s at %.2f,%.2f,%.2f width=%.2fm", FLOW_LOG_TAG, visible ? "shown" : "hidden",
-             transform[3], transform[7], transform[11], width);
+        LOGI("%s Desktop+ panel %s at %.2f,%.2f,%.2f width=%.2fm curvature=%.3f", FLOW_LOG_TAG, visible ? "shown" : "hidden",
+             transform[3], transform[7], transform[11], width, curvature);
     }
     gDesktopPanel.visible = visible;
     gDesktopPanel.flags = flags;
     memcpy(gDesktopPanel.transform, transform, sizeof(gDesktopPanel.transform));
     gDesktopPanel.width = width;
+    gDesktopPanel.curvature = curvature;
 }

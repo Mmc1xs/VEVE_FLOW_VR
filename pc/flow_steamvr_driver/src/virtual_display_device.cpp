@@ -853,7 +853,8 @@ bool FlowVirtualDisplayDevice::EnsureH264StreamHeader( const std::vector< uint8_
 	// Version 4 appends a layout field: 0 = mono screen, 1 = side-by-side stereo eyes.
 	// Version 5 adds a u32 Flow pose sequence to every frame header (see SendH264Packet).
 	// Version 6 adds the Desktop+ panel (flags, 3x4 transform, width) to every frame header.
-	const uint32_t version = HostToBigEndian32( 6 );
+	// Version 7 appends the panel's curvature.
+	const uint32_t version = HostToBigEndian32( 7 );
 	const uint32_t width = HostToBigEndian32( stream_width_ );
 	const uint32_t height = HostToBigEndian32( stream_height_ );
 	const uint32_t fps = HostToBigEndian32( kStreamPreviewFps );
@@ -933,7 +934,7 @@ bool FlowVirtualDisplayDevice::SendH264Packet( const std::vector< uint8_t > &pac
 		// Desktop+ panel in the Flow's tracking space (the driver adds kFlowStandingHeightOffset
 		// to the Flow's heights, so take it off again), as big-endian IEEE floats.
 		const FlowDesktopPanel panel = g_desktop_panel.Get();
-		uint32_t be_panel[ 14 ] = {};
+		uint32_t be_panel[ 15 ] = {};
 		be_panel[ 0 ] = HostToBigEndian32( panel.visible ? panel.flags : 0u );
 		for ( int i = 0; i < 12; ++i )
 		{
@@ -949,6 +950,9 @@ bool FlowVirtualDisplayDevice::SendH264Packet( const std::vector< uint8_t > &pac
 		uint32_t width_bits = 0;
 		std::memcpy( &width_bits, &panel.width, sizeof( width_bits ) );
 		be_panel[ 13 ] = HostToBigEndian32( width_bits );
+		uint32_t curvature_bits = 0;
+		std::memcpy( &curvature_bits, &panel.curvature, sizeof( curvature_bits ) );
+		be_panel[ 14 ] = HostToBigEndian32( curvature_bits );
 
 		if ( !SendStreamBytes( &be_size, sizeof( be_size ) ) ||
 		     !SendStreamBytes( &be_pts, sizeof( be_pts ) ) ||

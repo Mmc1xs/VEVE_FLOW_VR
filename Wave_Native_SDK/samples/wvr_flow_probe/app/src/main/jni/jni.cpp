@@ -50,13 +50,13 @@ JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_set
 JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopSurfaceTexture(JNIEnv *env, jobject activity, jobject surfaceTexture);
 JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_clearDesktopSurfaceTexture(JNIEnv *env, jobject activity);
 JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopStreamInfo(JNIEnv *env, jclass clazz, jint width, jint height);
-JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopPanel(JNIEnv *env, jclass clazz, jint flags, jfloatArray transform, jfloat width);
+JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopPanel(JNIEnv *env, jclass clazz, jint flags, jfloatArray transform, jfloat width, jfloat curvature);
 }
 
-JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopPanel(JNIEnv *env, jclass clazz, jint flags, jfloatArray transform, jfloat width) {
+JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopPanel(JNIEnv *env, jclass clazz, jint flags, jfloatArray transform, jfloat width, jfloat curvature) {
     float values[12] = {};
     env->GetFloatArrayRegion(transform, 0, 12, values);
-    FlowProbe_SetDesktopPanel(flags, values, width);
+    FlowProbe_SetDesktopPanel(flags, values, width, curvature);
 }
 
 JNIEXPORT void JNICALL Java_com_htc_vr_samples_wvr_1flow_1probe_MainActivity_setDesktopSurfaceTexture(JNIEnv *env, jobject activity, jobject surfaceTexture) {

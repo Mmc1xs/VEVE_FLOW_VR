@@ -179,20 +179,24 @@ void FlowKeyboardMouseControllerDevice::KeypadReceiveThread()
 	while ( is_active_ )
 	{
 		// Keypad: magic, buttons[, status flags]. Desktop+ panel: magic, flags, 12 floats, width
-		// [, 4 texture bounds].
+		// [, 4 texture bounds[, curvature]].
 		uint32_t packet[ 20 ] = {};
 		const int received = recv( sock, reinterpret_cast< char * >( packet ), sizeof( packet ), 0 );
-		if ( ( received == static_cast< int >( 15 * sizeof( uint32_t ) ) || received == static_cast< int >( 19 * sizeof( uint32_t ) ) ) &&
-		     packet[ 0 ] == kDesktopPanelMagic )
+		const int words = received / static_cast< int >( sizeof( uint32_t ) );
+		if ( ( words == 15 || words == 19 || words == 20 ) && received % sizeof( uint32_t ) == 0 && packet[ 0 ] == kDesktopPanelMagic )
 		{
 			FlowDesktopPanel panel;
 			panel.visible = ( packet[ 1 ] & 1u ) != 0;
 			panel.flags = packet[ 1 ];
 			std::memcpy( panel.transform, &packet[ 2 ], sizeof( panel.transform ) );
 			std::memcpy( &panel.width, &packet[ 14 ], sizeof( panel.width ) );
-			if ( received == static_cast< int >( 19 * sizeof( uint32_t ) ) )
+			if ( words >= 19 )
 			{
 				std::memcpy( panel.bounds, &packet[ 15 ], sizeof( panel.bounds ) );
+			}
+			if ( words >= 20 )
+			{
+				std::memcpy( &panel.curvature, &packet[ 19 ], sizeof( panel.curvature ) );
 			}
 			panel.updated_ms = FlowSteadyMilliseconds();
 			g_desktop_panel.Store( panel );
